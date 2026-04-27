@@ -171,6 +171,41 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
+  async function handleGenerateAIStationery() {
+    const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
+    if (!apiKey) {
+      alert('Configure VITE_WHISPER_API_KEY para gerar papel com IA.');
+      return;
+    }
+    setGeneratingAI(true);
+    try {
+      const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on: top edge (20%), bottom edge (15%), left margin (vertical lines), right edge (light). Pastel colors, soft and dreamy. Theme: ${['Floral', 'Butterflies', 'Garden', 'Vintage'][Math.floor(Math.random() * 4)]}. No horizontal lines, no text.`;
+
+      const res = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' }),
+      });
+
+      if (!res.ok) throw new Error(`DALL-E error: ${res.status}`);
+      const data = await res.json();
+      const imageUrl = data.data?.[0]?.url;
+      if (!imageUrl) throw new Error('Sem URL na resposta');
+
+      // Download e faz upload para o Supabase
+      const imgRes = await fetch(imageUrl);
+      const blob = await imgRes.blob();
+      const file = new File([blob], `ai-stationery-${Date.now()}.png`, { type: 'image/png' });
+      const savedUrl = await saveStationery(file);
+      if (savedUrl) setStationery(savedUrl);
+    } catch (error) {
+      console.error('Falha ao gerar papel com IA:', error);
+      alert('Erro ao gerar papel. Verifique o console.');
+    } finally {
+      setGeneratingAI(false);
+    }
+  }
+
   async function handleExportPDF() {
     setExportingPDF(true);
     try {
@@ -258,29 +293,10 @@ export default function EntryForm({ entry, onClose }) {
                 {opt.id === 'none' && <ImageIcon size={18} />}
               </div>
             ))}
-            <div 
-              className="stationery-option ai" 
-              onClick={() => {
-                const prompt = `Watercolor stationery paper background, 9:16 aspect ratio.
-
-DO NOT DRAW ANY HORIZONTAL LINES — the app draws its own lines via CSS.
-
-LEFT EDGE: Draw 2-3 delicate decorative VERTICAL lines (like a classic notebook margin). Can be watercolor style, with tiny floral details or vines along them.
-
-LAYOUT:
-- Top area (first 20%): Watercolor floral decorations allowed.
-- Right edge: Light watercolor floral decorations allowed.  
-- Bottom area (last 15%): Watercolor floral decorations allowed.
-- Center area: Must be COMPLETELY CLEAN cream/white paper texture.
-
-STYLE: Delicate watercolor, pastel colors, scrapbook/stationery aesthetic.
-Theme: Choose from Floral, Butterflies, Garden, Stars, Vintage.
-High quality, soft and dreamy. No text, no horizontal lines.`;
-                console.log("Prompt para IA:", prompt);
-                setGeneratingAI(true);
-                setTimeout(() => setGeneratingAI(false), 2000);
-              }}
-              title="Gerar Papel Técnico com IA"
+            <div
+              className="stationery-option ai"
+              onClick={handleGenerateAIStationery}
+              title="Gerar Papel com IA"
             >
               {generatingAI ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
             </div>
