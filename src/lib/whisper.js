@@ -1,48 +1,50 @@
-/**
- * Whisper API integration for audio transcription
- * Uses OpenAI-compatible Whisper API or free alternatives
- */
-
 const WHISPER_API_URL = import.meta.env.VITE_WHISPER_API_URL || 'https://api.openai.com/v1/audio/transcriptions';
 const WHISPER_API_KEY = import.meta.env.VITE_WHISPER_API_KEY || '';
 
-/**
- * Transcribe audio using Whisper API
- * @param {Blob} audioBlob - Audio blob to transcribe
- * @returns {Promise<{text: string, language: string}>}
- */
-export async function transcribeAudio(audioBlob) {
-  // If no API key, use browser Speech Recognition as fallback
+export const TRANSCRIPTION_MODELS = [
+  { id: 'whisper-1', label: 'Whisper', description: 'Rápido e preciso' },
+  { id: 'gpt-4o-transcribe', label: 'GPT-4o', description: 'Mais avançado' },
+];
+
+export function getSavedTranscriptionModel() {
+  return localStorage.getItem('bia-transcription-model') || 'whisper-1';
+}
+
+export function saveTranscriptionModel(model) {
+  localStorage.setItem('bia-transcription-model', model);
+}
+
+export async function transcribeAudio(audioBlob, model) {
   if (!WHISPER_API_KEY) {
     return transcribeWithBrowserAPI(audioBlob);
   }
 
+  const selectedModel = model || getSavedTranscriptionModel();
+
   try {
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.webm');
-    formData.append('model', 'whisper-1');
+    formData.append('model', selectedModel);
     formData.append('response_format', 'verbose_json');
 
     const response = await fetch(WHISPER_API_URL, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${WHISPER_API_KEY}`,
-      },
+      headers: { Authorization: `Bearer ${WHISPER_API_KEY}` },
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error(`Whisper API error: ${response.status}`);
+      throw new Error(`Transcription API error: ${response.status}`);
     }
 
     const data = await response.json();
     return {
       text: data.text,
       language: data.language || 'unknown',
+      model: selectedModel,
     };
   } catch (error) {
     console.error('Transcription failed:', error);
-    // Fallback to browser API
     return transcribeWithBrowserAPI(audioBlob);
   }
 }

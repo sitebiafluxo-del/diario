@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDiary } from '../contexts/DiaryContext';
 import { nowInBrazil, getDateString, getTimeString, toUTC } from '../lib/dateUtils';
-import { transcribeAudio } from '../lib/whisper';
+import { transcribeAudio, TRANSCRIPTION_MODELS, getSavedTranscriptionModel, saveTranscriptionModel } from '../lib/whisper';
 import MoodSelector from './MoodSelector';
 import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
@@ -35,6 +35,7 @@ export default function EntryForm({ entry, onClose }) {
   const [transcribing, setTranscribing] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [uploadingStationery, setUploadingStationery] = useState(false);
+  const [transcriptionModel, setTranscriptionModel] = useState(getSavedTranscriptionModel);
 
   const PAGES_SIZE = 12; // deve bater com rows={12} do textarea
 
@@ -117,7 +118,7 @@ export default function EntryForm({ entry, onClose }) {
     // Try to transcribe
     setTranscribing(true);
     try {
-      const result = await transcribeAudio(recording.blob);
+      const result = await transcribeAudio(recording.blob, transcriptionModel);
       if (result.text) {
         setContent((prev) => (prev ? prev + '\n\n' : '') + result.text);
       }
@@ -362,6 +363,19 @@ High quality, soft and dreamy. No text, no horizontal lines.`;
 
         {/* Audio Section */}
         <div className="entry-audio-section">
+          <div className="transcription-model-selector">
+            {TRANSCRIPTION_MODELS.map((m) => (
+              <button
+                key={m.id}
+                className={`transcription-model-btn ${transcriptionModel === m.id ? 'active' : ''}`}
+                onClick={() => { setTranscriptionModel(m.id); saveTranscriptionModel(m.id); }}
+                title={m.description}
+                type="button"
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
           <AudioRecorderComponent onRecordingComplete={handleRecordingComplete} />
           {audioUrl && (
             <div className="entry-audio-preview">

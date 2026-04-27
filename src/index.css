@@ -235,6 +235,9 @@ body {
 
 .entry-audio-section { display:flex;flex-direction:column;gap:8px; }
 .entry-audio-preview { margin-top:4px; }
+.transcription-model-selector { display:flex;gap:6px; }
+.transcription-model-btn { padding:4px 12px;border-radius:20px;border:1px solid var(--secondary);background:transparent;color:var(--text-secondary);font-size:12px;cursor:pointer;transition:all .2s; }
+.transcription-model-btn.active { background:var(--primary);color:#fff;border-color:var(--primary); }
 
 .entry-translation { display:flex;flex-direction:column;gap:8px; }
 .translation-toggle { display:flex;align-items:center;gap:6px;background:none;border:none;color:var(--primary);cursor:pointer;font-family:var(--font-main);font-size:0.95rem; }
