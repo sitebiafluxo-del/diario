@@ -594,7 +594,6 @@ export default function EntryForm({ entry, onClose }) {
         <div className="gen-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowGenModal(false)}>
           <div className="gen-modal animate-slide-up">
             <div className="gen-modal-header">
-          <div className="gen-modal-header">
               <h3>
                 {genModalType === 'free' ? <Zap size={18} /> : <Sparkles size={18} />}
                 {genModalType === 'free' ? 'Gerar papel grátis' : 'Gerar papel com IA'}
