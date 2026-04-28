@@ -37,11 +37,14 @@ export default async function handler(req, res) {
       apiUrl = 'https://api.groq.com/openai/v1/audio/transcriptions';
       formData.append('model', GROQ_MODELS[model]);
     } else {
-      apiKey = process.env.OPENAI_API_KEY;
+      // Rota OpenAI (pago) - Tenta primeiro OPENAI_API_KEY, depois VITE_WHISPER_API_KEY
+      apiKey = process.env.OPENAI_API_KEY || process.env.VITE_WHISPER_API_KEY;
+      
       if (!apiKey) {
-        console.error('OPENAI_API_KEY not found');
-        return res.status(503).json({ error: 'OPENAI_API_KEY not configured' });
+        console.error('OpenAI API Key not found in environment variables (OPENAI_API_KEY or VITE_WHISPER_API_KEY)');
+        return res.status(503).json({ error: 'OpenAI API Key not configured on server' });
       }
+      
       apiUrl = 'https://api.openai.com/v1/audio/transcriptions';
       formData.append('model', model || 'whisper-1');
     }
