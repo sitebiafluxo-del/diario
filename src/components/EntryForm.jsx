@@ -222,7 +222,7 @@ export default function EntryForm({ entry, onClose }) {
     setGenGenerating(true);
     setGenPreviewUrl(null);
     try {
-      const theme = genTheme.trim() || ['Floral', 'Borboletas', 'Jardim', 'Vintage'][Math.floor(Math.random() * 4)];
+      const theme = genTheme.trim() || ['Unicórnio', 'Borboletas', 'Espaço', 'Vintage'][Math.floor(Math.random() * 4)];
 
       // Tradução dinâmica com mais termos
       const themeTranslations = {
@@ -235,7 +235,8 @@ export default function EntryForm({ entry, onClose }) {
         'fundo do mar': 'ocean, sea life, corals, fish',
         'ceu azul': 'blue sky and clouds',
         'borboleta': 'butterflies',
-        'espaco': 'planets and stars'
+        'espaco': 'planets and stars',
+        'estrela': 'stars'
       };
 
       let translatedTheme = theme.toLowerCase();
@@ -246,8 +247,8 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Estratégia de "Moldura Temática"
-        const prompt = `A clean white paper with a themed frame made of ${translatedTheme}. The ${translatedTheme} elements are ONLY at the corners and edges. THE CENTER MUST BE EMPTY WHITE WITH GREY HORIZONTAL LINES. STRICTLY NO FLOWERS. NO FLORAL. NO PLANTS. ONLY ${translatedTheme} SUBJECTS. 2D vector art style.`;
+        // Estratégia de "Moldura Temática" - Sem mencionar flores positivamente
+        const prompt = `A clean white paper with a themed frame made of ${translatedTheme}. Border elements are ONLY ${translatedTheme}. THE CENTER IS BLANK WHITE WITH GREY HORIZONTAL LINES. DO NOT DRAW FLOWERS. NO FLORAL PATTERNS. NO PLANTS. NO NATURE UNLESS REQUESTED. ONLY ${translatedTheme} VISUALS. 2D vector art style.`;
         
         // Escolha da IA
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
@@ -260,7 +261,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `A thematic frame for a diary page. Subject: ${translatedTheme}. The ${translatedTheme} elements are placed in the corners and side margins. The central writing area is white with thin horizontal lines. ABSOLUTELY NO FLOWERS OR VEGETATION. Digital illustration, clean and professional.`;
+        const prompt = `A thematic frame for a diary page. Subject: ${translatedTheme}. The ${translatedTheme} design is placed ONLY in the corners and side margins. The central area is white with thin horizontal lines. ABSOLUTELY NO FLOWERS. NO FLORAL. NO VEGETATION. Digital illustration, clean, based ONLY on ${translatedTheme}.`;
         let imageUrl = null;
 
         try {
