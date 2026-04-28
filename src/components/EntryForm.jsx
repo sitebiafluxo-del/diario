@@ -254,10 +254,10 @@ export default function EntryForm({ entry, onClose }) {
         
         if (genEngine === 'flux') {
           // PROMPT EXCLUSIVO FLUX: Respeitar bordas, centro branco, linhas suaves e cores pastéis
-          prompt = `A decorative frame layout featuring a scenic landscape. The subject is a beautiful scenery of ${translatedTheme}. Very soft lines, light pastel colors, dreamy aesthetic. The scenic elements are drawn EXCLUSIVELY along the top border, bottom border, and side margins. The entire central area must be an OVERSIZED, PURE SOLID WHITE block with a soft radial fade only at the edges. The center must be bright white and completely empty to ensure maximum contrast for reading text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS, NO FLOWERS, NO BOTANICALS. 2D soft digital illustration, 9:16 portrait.`;
+          prompt = `A decorative frame layout featuring ${translatedTheme}. There is a MASSIVE, blindingly bright, pure solid white radial fade that completely erases the center 80% of the image. The subject must be pushed entirely to the extreme outer edges. The center is pure empty white copy space for absolute maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS. 2D soft digital illustration, 9:16 portrait.`;
         } else {
           // SDXL
-          prompt = `A beautiful digital scenery/landscape artwork of ${translatedTheme}, portrait 9:16. Must feature a massive, bright solid white radial fade dominating the entire center. The center must be completely empty and pure white to provide maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS, NO FLOWERS, NO PLANTS.`;
+          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. Apply a GIGANTIC, solid bright white radial fade right in the middle, completely erasing the central 80% of the image. The elements must only appear at the borders. The center must be pure empty white to provide absolute maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
         }
         
         // Escolha da IA
@@ -271,7 +271,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Digital scenery/landscape art of ${translatedTheme}. Aspect ratio 9:16. Only include scenic landscape elements of ${translatedTheme}. Include an oversized, bright solid white radial fade that covers the entire central area. The center must be perfectly empty and pure white to guarantee maximum contrast for reading text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS, NO FLOWERS, NO BOTANICALS.`;
+        const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Apply a HUGE, intensely bright solid white radial fade in the very center, completely erasing the middle 80% of the image. The elements of ${translatedTheme} must ONLY appear at the outer edges. The center must be perfectly pure white and completely empty for maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
         let imageUrl = null;
 
         try {
