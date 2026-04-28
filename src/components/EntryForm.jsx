@@ -236,7 +236,9 @@ export default function EntryForm({ entry, onClose }) {
         'ceu azul': 'blue sky and clouds',
         'borboleta': 'butterflies',
         'espaco': 'planets and stars',
-        'estrela': 'stars'
+        'estrela': 'stars',
+        'agua': 'clear water, gentle waves, water drops, blue ocean',
+        'água': 'clear water, gentle waves, water drops, blue ocean'
       };
 
       let translatedTheme = theme.toLowerCase();
@@ -247,8 +249,8 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Estratégia de Cores Pastel e Fundo Claro
-        const prompt = `${translatedTheme} artistic border design, high quality digital art, portrait 9:16. VERY LIGHT PASTEL COLORS ONLY. The background MUST be almost white or very light cream in the center for high contrast. Decorative elements of ${translatedTheme} only on corners. NO FLOWERS. NO DARK COLORS. Soft, dreamy, and airy aesthetic.`;
+        // Nova Estratégia: Sem falar de bordas ou decorações, apenas ilustração minimalista desbotada.
+        const prompt = `Minimalist digital illustration of ${translatedTheme}, portrait 9:16. VERY LIGHT PASTEL COLORS, faded, high-key lighting. The center must be completely empty and white. Only draw ${translatedTheme} at the very top and bottom edges. ABSOLUTELY NO FLOWERS, NO PLANTS, NO BOTANICALS.`;
         
         // Escolha da IA
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
@@ -261,7 +263,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Digital art of ${translatedTheme} for a diary background. Aspect ratio 9:16. COLORS: Light pastels only. The center area must be nearly white for writing. Borders and corners decorated with ${translatedTheme}. NO FLOWERS. NO DARK BACKGROUNDS. Minimalist and clean.`;
+        const prompt = `Minimalist digital art of ${translatedTheme}. Aspect ratio 9:16. Light pastel colors, faded and overexposed style. Lots of empty white space in the center for writing. Only include elements of ${translatedTheme}. ABSOLUTELY NO FLOWERS, NO PLANTS, NO BOTANICALS.`;
         let imageUrl = null;
 
         try {
