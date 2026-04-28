@@ -254,10 +254,10 @@ export default function EntryForm({ entry, onClose }) {
         
         if (genEngine === 'flux') {
           // PROMPT EXCLUSIVO FLUX: Respeitar bordas, centro branco, linhas suaves e cores pastéis
-          prompt = `A decorative frame layout. The subject is ${translatedTheme}. Very soft lines, light pastel colors, dreamy aesthetic. The ${translatedTheme} elements are drawn EXCLUSIVELY along the top border, bottom border, and side margins. The entire large central area must be left completely blank and pure white. STRICTLY NO FLOWERS. NO BOTANICALS. NO PEOPLE. 2D soft digital illustration, 9:16 portrait.`;
+          prompt = `A decorative frame layout featuring a scenic landscape. The subject is a beautiful scenery of ${translatedTheme}. Very soft lines, light pastel colors, dreamy aesthetic. The scenic elements are drawn EXCLUSIVELY along the top border, bottom border, and side margins. The entire large central area must be left completely blank and pure white, blending with a soft white radial fade into the center. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS, NO FLOWERS, NO BOTANICALS. 2D soft digital illustration, 9:16 portrait.`;
         } else {
-          // SDXL: Apenas o tema (o CSS faz o fade do centro)
-          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. NO PEOPLE, NO FACES, NO FLOWERS, NO PLANTS.`;
+          // SDXL
+          prompt = `A beautiful digital scenery/landscape artwork of ${translatedTheme}, portrait 9:16. Must include a prominent, soft white radial fade in the center, leaving a large blank pure white space for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS, NO FLOWERS, NO PLANTS.`;
         }
         
         // Escolha da IA
@@ -271,7 +271,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Only include elements of ${translatedTheme}. NO PEOPLE, NO FACES, NO FLOWERS, NO BOTANICALS.`;
+        const prompt = `Digital scenery/landscape art of ${translatedTheme}. Aspect ratio 9:16. Only include scenic landscape elements of ${translatedTheme}. Add a large, soft white radial fade in the center so it is completely blank and pure white for writing. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS, NO FLOWERS, NO BOTANICALS.`;
         let imageUrl = null;
 
         try {
