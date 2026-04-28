@@ -125,21 +125,46 @@ export default function EntryForm({ entry, onClose }) {
     // Try to transcribe
     setTranscribing(true);
     try {
+      console.log('Iniciando transcrição do áudio gravado...');
       const result = await transcribeAudio(recording.blob, transcriptionModel);
-      if (result.text) {
-        // Always append to the flat content string (source of truth for pagination too)
+      
+      if (result && result.text) {
+        console.log('Texto transcrito com sucesso:', result.text);
+        
+        // Atualiza o conteúdo
         setContent((prev) => {
           const separator = prev.trim() ? '\n\n' : '';
-          return prev + separator + result.text;
+          const newContent = prev + separator + result.text;
+          
+          // Se houver papelaria, vamos calcular a página e mudar para a última
+          if (stationery) {
+            const lines = newContent.split('\n');
+            const totalPages = Math.ceil(lines.length / PAGES_SIZE) || 1;
+            setCurrentPage(totalPages - 1);
+          }
+          
+          return newContent;
         });
-      } else if (result.noApiKey) {
+
+        // Foca no campo de texto após um pequeno delay para o React renderizar
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+          }
+        }, 100);
+
+      } else if (result && result.noApiKey) {
         alert('Áudio salvo! Para transcrição automática, configure a chave OPENAI_API_KEY no Vercel.');
+      } else {
+        console.warn('Transcrição retornou texto vazio ou nulo.');
       }
-      if (result.note) {
+
+      if (result && result.note) {
         console.info(result.note);
       }
     } catch (error) {
-      console.error('Transcription failed:', error);
+      console.error('Erro no fluxo de transcrição:', error);
       alert('Erro ao transcrever o áudio. Verifique sua conexão e tente novamente.');
     } finally {
       setTranscribing(false);
