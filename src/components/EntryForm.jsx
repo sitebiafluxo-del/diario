@@ -5,9 +5,8 @@ import { transcribeAudio, TRANSCRIPTION_MODELS, getSavedTranscriptionModel, save
 import MoodSelector from './MoodSelector';
 import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
-import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw, Camera } from 'lucide-react';
+import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
-import { exportToInstagram } from '../lib/instagramExport';
 
 export default function EntryForm({ entry, onClose }) {
   const { addEntry, editEntry, removeEntry, saveAudio, saveStationery } = useDiary();
@@ -29,7 +28,6 @@ export default function EntryForm({ entry, onClose }) {
   const [audioBlob, setAudioBlob] = useState(null);
   const [showTranslation, setShowTranslation] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [exportingInsta, setExportingInsta] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [stationery, setStationery] = useState(entry?.stationery_url || null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -45,7 +43,6 @@ export default function EntryForm({ entry, onClose }) {
   const [genGenerating, setGenGenerating] = useState(false);
   const [genPreviewUrl, setGenPreviewUrl] = useState(null); // temp URL before saving
   const [genSaving, setGenSaving] = useState(false);
-  const formRef = useRef(null);
 
   const PAGES_SIZE = 12; // deve bater com rows={12} do textarea
 
@@ -315,19 +312,6 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
-  async function handleExportInstagram() {
-    setExportingInsta(true);
-    try {
-      const fileName = `insta_${date}${title ? '_' + title.slice(0, 10) : ''}`;
-      const entryData = { title, content, mood };
-      await exportToInstagram(entryData, stationery, fileName);
-    } catch (error) {
-      alert('Falha ao gerar imagem para Instagram.');
-    } finally {
-      setExportingInsta(false);
-    }
-  }
-
   async function handleDelete() {
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -346,7 +330,7 @@ export default function EntryForm({ entry, onClose }) {
   return (
     <Fragment>
       <div className="entry-form-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="entry-form animate-slide-up" ref={formRef}>
+        <div className="entry-form animate-slide-up">
         {/* Header */}
         <div className="entry-form-header">
           <h2>{isEditing ? 'Editar registro' : 'Novo registro'}</h2>
@@ -548,16 +532,6 @@ export default function EntryForm({ entry, onClose }) {
           >
             {exportingPDF ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
             Salvar PDF
-          </button>
-
-          <button
-            className="action-button insta"
-            onClick={handleExportInstagram}
-            disabled={exportingInsta || (!content.trim() && !title.trim())}
-            title="Exportar Imagem (Instagram)"
-          >
-            {exportingInsta ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
-            Instagram
           </button>
 
           {isEditing && (
