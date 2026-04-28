@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useDiary } from '../contexts/DiaryContext';
 import { nowInBrazil, getDateString, getTimeString, toUTC } from '../lib/dateUtils';
 import { transcribeAudio, TRANSCRIPTION_MODELS, getSavedTranscriptionModel, saveTranscriptionModel } from '../lib/whisper';
 import MoodSelector from './MoodSelector';
 import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
-import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
+import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
 
 export default function EntryForm({ entry, onClose }) {
@@ -30,13 +30,19 @@ export default function EntryForm({ entry, onClose }) {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [stationery, setStationery] = useState(entry?.stationery_url || null);
-  const [generatingAI, setGeneratingAI] = useState(false);
-  const [generatingFree, setGeneratingFree] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [uploadingStationery, setUploadingStationery] = useState(false);
   const [transcriptionModel, setTranscriptionModel] = useState(getSavedTranscriptionModel);
+
+  // Stationery generator modal
+  const [showGenModal, setShowGenModal] = useState(false);
+  const [genModalType, setGenModalType] = useState('free'); // 'free' | 'ai'
+  const [genTheme, setGenTheme] = useState('');
+  const [genGenerating, setGenGenerating] = useState(false);
+  const [genPreviewUrl, setGenPreviewUrl] = useState(null); // temp URL before saving
+  const [genSaving, setGenSaving] = useState(false);
 
   const PAGES_SIZE = 12; // deve bater com rows={12} do textarea
 
@@ -172,77 +178,90 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
-  async function handleGenerateFreeStationery() {
-    setGeneratingFree(true);
-    try {
-      const theme = ['Floral', 'Butterflies', 'Garden', 'Vintage'][Math.floor(Math.random() * 4)];
-      const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on edges and margins. Pastel colors, soft and dreamy. Theme: ${theme}. No horizontal lines, no text.`;
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
+  function openGenModal(type) {
+    setGenModalType(type);
+    setGenTheme('');
+    setGenPreviewUrl(null);
+    setShowGenModal(true);
+  }
 
-      const imgRes = await fetch(url);
-      if (!imgRes.ok) throw new Error('Pollinations error');
-      const blob = await imgRes.blob();
-      const file = new File([blob], `free-stationery-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const savedUrl = await saveStationery(file);
-      if (savedUrl) setStationery(savedUrl);
+  async function handleGenerate() {
+    setGenGenerating(true);
+    setGenPreviewUrl(null);
+    try {
+      const theme = genTheme.trim() || ['Floral', 'Borboletas', 'Jardim', 'Vintage'][Math.floor(Math.random() * 4)];
+
+      if (genModalType === 'free') {
+        // Pollinations (grátis)
+        const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on edges and margins. Pastel colors, soft and dreamy. Theme: ${theme}. No horizontal lines, no text.`;
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
+        const imgRes = await fetch(url);
+        if (!imgRes.ok) throw new Error('Pollinations error');
+        const blob = await imgRes.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        setGenPreviewUrl(objectUrl);
+      } else {
+        // DALL-E 3
+        const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on: top edge (20%), bottom edge (15%), left margin (vertical lines), right edge (light). Pastel colors, soft and dreamy. Theme: ${theme}. No horizontal lines, no text.`;
+        let imageUrl = null;
+
+        try {
+          const proxyRes = await fetch('/api/generate-stationery', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt }),
+          });
+          if (proxyRes.ok) {
+            const data = await proxyRes.json();
+            imageUrl = data.url;
+          }
+        } catch (_) {}
+
+        if (!imageUrl) {
+          const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
+          if (!apiKey) {
+            alert('Não foi possível gerar o papel. Verifique os créditos da conta OpenAI em platform.openai.com/billing');
+            return;
+          }
+          const res = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' }),
+          });
+          if (!res.ok) throw new Error(`DALL-E error: ${res.status}`);
+          const data = await res.json();
+          imageUrl = data.data?.[0]?.url;
+        }
+
+        if (!imageUrl) throw new Error('Sem URL na resposta');
+        setGenPreviewUrl(imageUrl);
+      }
     } catch (error) {
-      console.error('Falha ao gerar papel gratuito:', error);
-      alert('Erro ao gerar papel gratuito. Tente novamente.');
+      console.error('Falha ao gerar papel:', error);
+      alert('Erro ao gerar papel. Tente novamente.');
     } finally {
-      setGeneratingFree(false);
+      setGenGenerating(false);
     }
   }
 
-  async function handleGenerateAIStationery() {
-    setGeneratingAI(true);
+  async function handleSaveStationery() {
+    if (!genPreviewUrl) return;
+    setGenSaving(true);
     try {
-      const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on: top edge (20%), bottom edge (15%), left margin (vertical lines), right edge (light). Pastel colors, soft and dreamy. Theme: ${['Floral', 'Butterflies', 'Garden', 'Vintage'][Math.floor(Math.random() * 4)]}. No horizontal lines, no text.`;
-
-      let imageUrl = null;
-
-      // 1. Tenta o proxy server-side (produção no Vercel — chave fica segura)
-      try {
-        const proxyRes = await fetch('/api/generate-stationery', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt }),
-        });
-        if (proxyRes.ok) {
-          const data = await proxyRes.json();
-          imageUrl = data.url;
-        }
-      } catch (_) {}
-
-      // 2. Fallback: chamada direta com chave local (dev)
-      if (!imageUrl) {
-        const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
-        if (!apiKey) {
-          alert('Não foi possível gerar o papel. Verifique os créditos da conta OpenAI em platform.openai.com/billing');
-          return;
-        }
-        const res = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' }),
-        });
-        if (!res.ok) throw new Error(`DALL-E error: ${res.status}`);
-        const data = await res.json();
-        imageUrl = data.data?.[0]?.url;
-      }
-
-      if (!imageUrl) throw new Error('Sem URL na resposta');
-
-      // Download e faz upload para o Supabase
-      const imgRes = await fetch(imageUrl);
+      const imgRes = await fetch(genPreviewUrl);
       const blob = await imgRes.blob();
-      const file = new File([blob], `ai-stationery-${Date.now()}.png`, { type: 'image/png' });
+      const ext = genModalType === 'free' ? 'jpg' : 'png';
+      const file = new File([blob], `stationery-${Date.now()}.${ext}`, { type: blob.type });
       const savedUrl = await saveStationery(file);
-      if (savedUrl) setStationery(savedUrl);
+      if (savedUrl) {
+        setStationery(savedUrl);
+        setShowGenModal(false);
+      }
     } catch (error) {
-      console.error('Falha ao gerar papel com IA:', error);
-      alert('Erro ao gerar papel. Verifique o console.');
+      console.error('Erro ao salvar papel:', error);
+      alert('Erro ao salvar. Tente novamente.');
     } finally {
-      setGeneratingAI(false);
+      setGenSaving(false);
     }
   }
 
@@ -277,8 +296,9 @@ export default function EntryForm({ entry, onClose }) {
   }
 
   return (
-    <div className="entry-form-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="entry-form animate-slide-up">
+    <Fragment>
+      <div className="entry-form-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="entry-form animate-slide-up">
         {/* Header */}
         <div className="entry-form-header">
           <h2>{isEditing ? 'Editar registro' : 'Novo registro'}</h2>
@@ -335,17 +355,17 @@ export default function EntryForm({ entry, onClose }) {
             ))}
             <div
               className="stationery-option ai"
-              onClick={handleGenerateFreeStationery}
+              onClick={() => openGenModal('free')}
               title="Gerar Papel Grátis (Pollinations)"
             >
-              {generatingFree ? <Loader2 size={18} className="spin" /> : <Zap size={18} />}
+              <Zap size={18} />
             </div>
             <div
-              className="stationery-option ai"
-              onClick={handleGenerateAIStationery}
+              className="stationery-option ai sparkles"
+              onClick={() => openGenModal('ai')}
               title="Gerar Papel com DALL-E 3 (OpenAI)"
             >
-              {generatingAI ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
+              <Sparkles size={18} />
             </div>
 
             {/* Upload imagem customizada */}
@@ -375,7 +395,7 @@ export default function EntryForm({ entry, onClose }) {
           )}
         </div>
 
-        {/* Content */}
+
         <div className="entry-content-area">
           <textarea
             ref={textareaRef}
@@ -509,6 +529,101 @@ export default function EntryForm({ entry, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+
+      {/* Stationery Generator Modal — rendered outside the form for correct z-index */}
+      {showGenModal && (
+        <div className="gen-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowGenModal(false)}>
+          <div className="gen-modal animate-slide-up">
+            <div className="gen-modal-header">
+              <h3>
+                {genModalType === 'free' ? <Zap size={18} /> : <Sparkles size={18} />}
+                {genModalType === 'free' ? 'Gerar papel grátis' : 'Gerar papel com IA'}
+              </h3>
+              <button className="icon-button" onClick={() => setShowGenModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="gen-modal-body">
+              <p className="gen-modal-hint">
+                Descreva o tema do papel. Ex: <em>"borboletas douradas"</em>, <em>"jardim japonês"</em>, <em>"galáxia pastel"</em>
+              </p>
+              <div className="gen-modal-input-row">
+                <input
+                  id="gen-theme-input"
+                  type="text"
+                  placeholder="Descreva o tema do papel..."
+                  value={genTheme}
+                  onChange={(e) => setGenTheme(e.target.value)}
+                  className="gen-modal-input"
+                  onKeyDown={(e) => e.key === 'Enter' && !genGenerating && handleGenerate()}
+                  autoFocus
+                />
+                <button
+                  className="gen-modal-btn generate"
+                  onClick={handleGenerate}
+                  disabled={genGenerating}
+                  title="Gerar"
+                >
+                  {genGenerating ? <Loader2 size={18} className="spin" /> : <RefreshCw size={18} />}
+                </button>
+              </div>
+
+              {/* Preview area */}
+              <div className="gen-modal-preview">
+                {genGenerating && (
+                  <div className="gen-modal-loading">
+                    <Loader2 size={32} className="spin" style={{ color: 'var(--primary)' }} />
+                    <p>Gerando papel{genModalType === 'ai' ? ' com IA' : ''}…</p>
+                  </div>
+                )}
+                {!genGenerating && !genPreviewUrl && (
+                  <div className="gen-modal-placeholder">
+                    <ImageIcon size={40} style={{ opacity: 0.25 }} />
+                    <p>O papel gerado aparecerá aqui</p>
+                  </div>
+                )}
+                {!genGenerating && genPreviewUrl && (
+                  <img
+                    src={genPreviewUrl}
+                    alt="Preview do papel"
+                    className="gen-modal-img"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="gen-modal-footer">
+              <button
+                className="gen-modal-btn discard"
+                onClick={() => setShowGenModal(false)}
+              >
+                Cancelar
+              </button>
+              {genPreviewUrl && (
+                <button
+                  className="gen-modal-btn regenerate"
+                  onClick={handleGenerate}
+                  disabled={genGenerating}
+                >
+                  <RefreshCw size={15} />
+                  Gerar outro
+                </button>
+              )}
+              <button
+                className="gen-modal-btn save-paper"
+                onClick={handleSaveStationery}
+                disabled={!genPreviewUrl || genSaving}
+              >
+                {genSaving ? <Loader2 size={15} className="spin" /> : <CheckCircle size={15} />}
+                Usar este papel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Fragment>
   );
 }
