@@ -11,7 +11,7 @@ export const TRANSCRIPTION_MODELS = [
 ];
 
 export function getSavedTranscriptionModel() {
-  return localStorage.getItem('bia-transcription-model') || 'whisper-1';
+  return localStorage.getItem('bia-transcription-model') || 'groq-whisper-large-v3-turbo';
 }
 
 export function saveTranscriptionModel(model) {
