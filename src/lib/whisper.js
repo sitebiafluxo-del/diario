@@ -79,13 +79,59 @@ export async function transcribeAudio(audioBlob, model) {
   }
 }
 
-function transcribeWithBrowserAPI() {
+function transcribeWithBrowserAPI(audioBlob) {
   return new Promise((resolve) => {
-    resolve({
-      text: '',
-      language: 'pt-BR',
-      note: 'Configure OPENAI_API_KEY no Vercel para transcrição automática.',
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      resolve({
+        text: '',
+        language: 'pt-BR',
+        note: 'Transcrição não disponível: configure OPENAI_API_KEY no Vercel.',
+        noApiKey: true,
+      });
+      return;
+    }
+
+    // Play the audio blob through an audio element while capturing with SpeechRecognition
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    let transcript = '';
+
+    recognition.onresult = (event) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript + ' ';
+        }
+      }
+    };
+
+    recognition.onend = () => {
+      URL.revokeObjectURL(audioUrl);
+      resolve({ text: transcript.trim(), language: 'pt-BR', model: 'browser-speech-api' });
+    };
+
+    recognition.onerror = () => {
+      URL.revokeObjectURL(audioUrl);
+      resolve({
+        text: '',
+        language: 'pt-BR',
+        note: 'Transcrição não disponível: configure OPENAI_API_KEY no Vercel.',
+        noApiKey: true,
+      });
+    };
+
+    recognition.start();
+    audio.play().catch(() => {
+      recognition.stop();
     });
+
+    audio.onended = () => recognition.stop();
   });
 }
 

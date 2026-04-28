@@ -127,13 +127,20 @@ export default function EntryForm({ entry, onClose }) {
     try {
       const result = await transcribeAudio(recording.blob, transcriptionModel);
       if (result.text) {
-        setContent((prev) => (prev ? prev + '\n\n' : '') + result.text);
+        // Always append to the flat content string (source of truth for pagination too)
+        setContent((prev) => {
+          const separator = prev.trim() ? '\n\n' : '';
+          return prev + separator + result.text;
+        });
+      } else if (result.noApiKey) {
+        alert('Áudio salvo! Para transcrição automática, configure a chave OPENAI_API_KEY no Vercel.');
       }
       if (result.note) {
         console.info(result.note);
       }
     } catch (error) {
       console.error('Transcription failed:', error);
+      alert('Erro ao transcrever o áudio. Verifique sua conexão e tente novamente.');
     } finally {
       setTranscribing(false);
     }
