@@ -257,7 +257,7 @@ export default function EntryForm({ entry, onClose }) {
           prompt = `A decorative frame layout featuring ${translatedTheme}. There is a MASSIVE, blindingly bright, pure solid white radial fade that completely erases the center 80% of the image. The subject must be pushed entirely to the extreme outer edges and kept VERY SMALL (only the bottom 10% of the image). The center is pure empty white copy space for absolute maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS. 2D soft digital illustration, 9:16 portrait.`;
         } else {
           // SDXL
-          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. Apply a GIGANTIC, solid bright white radial fade right in the middle, completely erasing the central 80% of the image. The elements must only appear at the extreme bottom edge and must be VERY SMALL. The center must be pure empty white to provide absolute maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
+          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. Apply a GIGANTIC, solid bright white radial fade right in the middle, completely erasing the central 80% of the image. The elements must only appear at the extreme bottom edge and must be VERY SMALL (only the bottom 10% of the image). The center must be pure empty white to provide absolute maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
         }
         
         // Escolha da IA
