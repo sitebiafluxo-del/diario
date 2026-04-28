@@ -225,7 +225,7 @@ export default function EntryForm({ entry, onClose }) {
 
       if (genModalType === 'free') {
         // Pollinations (grátis)
-        const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on edges and margins. Pastel colors, soft and dreamy. Theme: ${theme}. No horizontal lines, no text.`;
+        const prompt = `Professional stationery paper design, portrait 9:16. Clean cream/white background with subtle, light grey horizontal ruled lines for writing across the entire page. Decorations based on the theme: ${theme}. Elements should be elegant and mostly on edges/margins. High quality, premium aesthetic.`;
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
@@ -234,7 +234,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on: top edge (20%), bottom edge (15%), left margin (vertical lines), right edge (light). Pastel colors, soft and dreamy. Theme: ${theme}. No horizontal lines, no text.`;
+        const prompt = `Professional stationery paper design, portrait 9:16. Clean background with subtle, light grey horizontal ruled lines for writing across the entire page. Decorative elements on margins and edges inspired by: ${theme}. High quality, premium aesthetic, soft colors, elegant composition. No text.`;
         let imageUrl = null;
 
         try {
