@@ -611,14 +611,18 @@ export default function EntryForm({ entry, onClose }) {
               {genModalType === 'free' && (
                 <div className="gen-engine-selector">
                   <button 
+                    type="button"
+                    style={{ zIndex: 50, position: 'relative' }}
                     className={`engine-btn ${genEngine === 'flux' ? 'active' : ''}`}
-                    onClick={() => setGenEngine('flux')}
+                    onClick={() => { console.log('Engine set to flux'); setGenEngine('flux'); }}
                   >
                     Flux (Qualidade)
                   </button>
                   <button 
+                    type="button"
+                    style={{ zIndex: 50, position: 'relative' }}
                     className={`engine-btn ${genEngine === 'sdxl' ? 'active' : ''}`}
-                    onClick={() => setGenEngine('sdxl')}
+                    onClick={() => { console.log('Engine set to sdxl'); setGenEngine('sdxl'); }}
                   >
                     SDXL (Mais fiel)
                   </button>

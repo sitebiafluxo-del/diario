@@ -509,3 +509,38 @@ body {
   .theme-selector-overlay { align-items:center; }
   .fab { bottom:32px;right:calc(50% - 280px); }
 }
+
+/* Engine selector */
+.gen-engine-selector {
+  display: flex;
+  gap: 12px;
+  margin: 15px 0;
+  width: 100%;
+}
+
+.engine-btn {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid #e0e0e0;
+  background: white;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  z-index: 50 !important;
+  position: relative !important;
+}
+
+.engine-btn.active {
+  background: #fdf2f2 !important;
+  border-color: #8c5b3f !important;
+  color: #8c5b3f !important;
+  box-shadow: 0 2px 8px rgba(140, 91, 63, 0.2) !important;
+}
+
+.engine-btn:hover:not(.active) {
+  background: #f9f9f9;
+  border-color: #ccc;
+}
