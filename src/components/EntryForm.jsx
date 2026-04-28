@@ -223,31 +223,30 @@ export default function EntryForm({ entry, onClose }) {
     try {
       const theme = genTheme.trim() || ['Floral', 'Borboletas', 'Jardim', 'Vintage'][Math.floor(Math.random() * 4)];
 
-      // Tradução e expansão agressiva de temas
+      // Tradução dinâmica com mais termos
       const themeTranslations = {
-        'cachorro': 'CUTE PUPPY DOGS, paws, bones, small dogs',
-        'gato': 'CUTE KITTENS, cats, paws',
-        'borboleta': 'COLORFUL BUTTERFLIES ONLY',
-        'fundo do mar': 'UNDERWATER WORLD, ocean, sea fish, corals, blue water, bubbles',
-        'mar': 'OCEAN, BEACH, SEA, waves',
-        'ceu azul': 'CLEAR BLUE SKY, fluffy white clouds, bright sun rays',
-        'espaco': 'OUTER SPACE, planets, stars, galaxies, astronauts',
-        'fofinho': 'kawaii cute style',
-        'jardim': 'nature landscape, grass, trees (STRICTLY NO FLOWERS)',
-        'vintage': 'old paper, parchment, antique style'
+        'cachorro': 'cute puppies',
+        'gatinho': 'little kittens, cats',
+        'gato': 'kittens',
+        'criança': 'happy children playing',
+        'menino': 'little boy',
+        'menina': 'little girl',
+        'fundo do mar': 'ocean, sea life, corals, fish',
+        'ceu azul': 'blue sky and clouds',
+        'borboleta': 'butterflies',
+        'espaco': 'planets and stars'
       };
 
-      let translatedTheme = theme.toUpperCase();
-      // Busca por palavras-chave dentro do que o usuário digitou
+      let translatedTheme = theme.toLowerCase();
       Object.keys(themeTranslations).forEach(key => {
-        if (theme.toLowerCase().includes(key)) {
-          translatedTheme = themeTranslations[key];
+        if (translatedTheme.includes(key)) {
+          translatedTheme = translatedTheme.replace(key, themeTranslations[key]);
         }
       });
 
       if (genModalType === 'free') {
-        // Pollinations (Flux) - Mudando "stationery" para "paper border"
-        const prompt = `A writing paper background. The margins and borders are decorated with ${translatedTheme}. DO NOT DRAW FLOWERS. NO PLANTS. NO FLORAL. JUST ${translatedTheme}. Must have subtle light grey horizontal ruled lines for writing. Background: clean. Style: Digital art.`;
+        // Pollinations (Flux) - Estratégia de "Moldura Temática"
+        const prompt = `A clean white paper with a themed frame made of ${translatedTheme}. The ${translatedTheme} elements are ONLY at the corners and edges. THE CENTER MUST BE EMPTY WHITE WITH GREY HORIZONTAL LINES. STRICTLY NO FLOWERS. NO FLORAL. NO PLANTS. ONLY ${translatedTheme} SUBJECTS. 2D vector art style.`;
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
@@ -256,7 +255,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Digital art of a writing paper for a diary. Aspect ratio 9:16. The border design is EXCLUSIVELY ${translatedTheme}. STRICTLY NO FLOWERS. NO FLORAL PATTERNS. The central area has light grey horizontal ruled lines. The theme ${translatedTheme} must be the only decorative element.`;
+        const prompt = `A thematic frame for a diary page. Subject: ${translatedTheme}. The ${translatedTheme} elements are placed in the corners and side margins. The central writing area is white with thin horizontal lines. ABSOLUTELY NO FLOWERS OR VEGETATION. Digital illustration, clean and professional.`;
         let imageUrl = null;
 
         try {
