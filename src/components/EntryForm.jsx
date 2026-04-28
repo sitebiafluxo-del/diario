@@ -247,8 +247,8 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Estratégia de "Moldura Temática" - Sem mencionar flores positivamente
-        const prompt = `A clean white paper with a themed frame made of ${translatedTheme}. Border elements are ONLY ${translatedTheme}. THE CENTER IS BLANK WHITE WITH GREY HORIZONTAL LINES. DO NOT DRAW FLOWERS. NO FLORAL PATTERNS. NO PLANTS. NO NATURE UNLESS REQUESTED. ONLY ${translatedTheme} VISUALS. 2D vector art style.`;
+        // Nova estratégia: Pedir ARTE e não PAPEL (para evitar flores)
+        const prompt = `${translatedTheme} artistic background, high quality digital art, portrait 9:16. Minimalist composition with a very light and clean center area. Decorative elements related to ${translatedTheme} only on the borders. NO FLOWERS. NO ROSES. Vibrant and clear ${translatedTheme} style.`;
         
         // Escolha da IA
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
@@ -261,7 +261,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `A thematic frame for a diary page. Subject: ${translatedTheme}. The ${translatedTheme} design is placed ONLY in the corners and side margins. The central area is white with thin horizontal lines. ABSOLUTELY NO FLOWERS. NO FLORAL. NO VEGETATION. Digital illustration, clean, based ONLY on ${translatedTheme}.`;
+        const prompt = `Digital art illustration of ${translatedTheme}. Portrait orientation 9:16. The composition should be a frame where ${translatedTheme} elements decorate the edges, but the center is kept very light and empty for text overlay. High quality, premium aesthetic, strictly following the theme: ${translatedTheme}. NO FLOWERS.`;
         let imageUrl = null;
 
         try {
