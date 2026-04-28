@@ -85,11 +85,6 @@ function drawBackground(doc, imgInfo) {
 
   doc.addImage(dataURL, 'PNG', drawX, drawY, drawW, drawH);
 
-  // Aplica uma película branca para replicar o fade e garantir a leitura no PDF
-  doc.setGState(new doc.GState({ opacity: 0.85 }));
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
-  doc.setGState(new doc.GState({ opacity: 1.0 })); // Restaura a opacidade normal
 }
 
 // ── Linhas horizontais do caderno ──────────────────────────────────────────────
