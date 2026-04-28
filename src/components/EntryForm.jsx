@@ -5,7 +5,7 @@ import { transcribeAudio, TRANSCRIPTION_MODELS, getSavedTranscriptionModel, save
 import MoodSelector from './MoodSelector';
 import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
-import { X, Save, Trash2, Languages, Loader2, Sparkles, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
+import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
 
 export default function EntryForm({ entry, onClose }) {
@@ -31,6 +31,7 @@ export default function EntryForm({ entry, onClose }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [stationery, setStationery] = useState(entry?.stationery_url || null);
   const [generatingAI, setGeneratingAI] = useState(false);
+  const [generatingFree, setGeneratingFree] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
@@ -171,6 +172,27 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
+  async function handleGenerateFreeStationery() {
+    setGeneratingFree(true);
+    try {
+      const theme = ['Floral', 'Butterflies', 'Garden', 'Vintage'][Math.floor(Math.random() * 4)];
+      const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on edges and margins. Pastel colors, soft and dreamy. Theme: ${theme}. No horizontal lines, no text.`;
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
+
+      const imgRes = await fetch(url);
+      if (!imgRes.ok) throw new Error('Pollinations error');
+      const blob = await imgRes.blob();
+      const file = new File([blob], `free-stationery-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const savedUrl = await saveStationery(file);
+      if (savedUrl) setStationery(savedUrl);
+    } catch (error) {
+      console.error('Falha ao gerar papel gratuito:', error);
+      alert('Erro ao gerar papel gratuito. Tente novamente.');
+    } finally {
+      setGeneratingFree(false);
+    }
+  }
+
   async function handleGenerateAIStationery() {
     setGeneratingAI(true);
     try {
@@ -195,7 +217,7 @@ export default function EntryForm({ entry, onClose }) {
       if (!imageUrl) {
         const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
         if (!apiKey) {
-          alert('Configure OPENAI_API_KEY no Vercel para gerar papel com IA.');
+          alert('Não foi possível gerar o papel. Verifique os créditos da conta OpenAI em platform.openai.com/billing');
           return;
         }
         const res = await fetch('https://api.openai.com/v1/images/generations', {
@@ -313,8 +335,15 @@ export default function EntryForm({ entry, onClose }) {
             ))}
             <div
               className="stationery-option ai"
+              onClick={handleGenerateFreeStationery}
+              title="Gerar Papel Grátis (Pollinations)"
+            >
+              {generatingFree ? <Loader2 size={18} className="spin" /> : <Zap size={18} />}
+            </div>
+            <div
+              className="stationery-option ai"
               onClick={handleGenerateAIStationery}
-              title="Gerar Papel com IA"
+              title="Gerar Papel com DALL-E 3 (OpenAI)"
             >
               {generatingAI ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
             </div>
