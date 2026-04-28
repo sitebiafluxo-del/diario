@@ -223,9 +223,29 @@ export default function EntryForm({ entry, onClose }) {
     try {
       const theme = genTheme.trim() || ['Floral', 'Borboletas', 'Jardim', 'Vintage'][Math.floor(Math.random() * 4)];
 
+      // Tradução simples de termos comuns para melhorar a precisão da IA (opcional mas recomendado)
+      const themeTranslations = {
+        'cachorro': 'puppy dog',
+        'gato': 'cute cat',
+        'borboleta': 'butterflies',
+        'flor': 'flowers',
+        'rosa': 'roses',
+        'fofinho': 'cute',
+        'jardim': 'garden',
+        'estrela': 'stars',
+        'lua': 'moon',
+        'galaxia': 'galaxy',
+        'vintage': 'vintage retro'
+      };
+
+      let translatedTheme = theme.toLowerCase();
+      Object.keys(themeTranslations).forEach(key => {
+        translatedTheme = translatedTheme.replace(new RegExp(key, 'g'), themeTranslations[key]);
+      });
+
       if (genModalType === 'free') {
-        // Pollinations (grátis)
-        const prompt = `Professional stationery paper design, portrait 9:16. Clean cream/white background with subtle, light grey horizontal ruled lines for writing across the entire page. Decorations based on the theme: ${theme}. Elements should be elegant and mostly on edges/margins. High quality, premium aesthetic.`;
+        // Pollinations (grátis) - Forçando o tema e as linhas
+        const prompt = `Professional stationery paper, portrait 9:16. The border decorations must be EXCLUSIVELY about ${translatedTheme}. NO FLOWERS or roses unless requested. Must have subtle light grey horizontal ruled lines for writing in the center. High quality, clean design.`;
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
@@ -233,8 +253,8 @@ export default function EntryForm({ entry, onClose }) {
         const objectUrl = URL.createObjectURL(blob);
         setGenPreviewUrl(objectUrl);
       } else {
-        // DALL-E 3
-        const prompt = `Professional stationery paper design, portrait 9:16. Clean background with subtle, light grey horizontal ruled lines for writing across the entire page. Decorative elements on margins and edges inspired by: ${theme}. High quality, premium aesthetic, soft colors, elegant composition. No text.`;
+        // DALL-E 3 - Mais detalhado
+        const prompt = `Professional stationery paper design, 9:16 aspect ratio. The entire page must have subtle, light grey horizontal ruled lines for writing. The margins and corners must be decorated EXCLUSIVELY with elements related to the theme: ${translatedTheme}. Style: Clean, premium, aesthetic. Do not add flowers unless the theme is floral.`;
         let imageUrl = null;
 
         try {
