@@ -215,6 +215,7 @@ body {
   border: none;
   overflow: hidden;
   background-attachment: local, local;
+  text-shadow: 0 0 2px white, 0 0 5px white; /* Ajuda no contraste */
 }
 .entry-textarea:focus { border-color:var(--primary); }
 

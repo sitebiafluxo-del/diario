@@ -247,8 +247,8 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Nova estratégia: Pedir ARTE e não PAPEL (para evitar flores)
-        const prompt = `${translatedTheme} artistic background, high quality digital art, portrait 9:16. Minimalist composition with a very light and clean center area. Decorative elements related to ${translatedTheme} only on the borders. NO FLOWERS. NO ROSES. Vibrant and clear ${translatedTheme} style.`;
+        // Estratégia de Cores Pastel e Fundo Claro
+        const prompt = `${translatedTheme} artistic border design, high quality digital art, portrait 9:16. VERY LIGHT PASTEL COLORS ONLY. The background MUST be almost white or very light cream in the center for high contrast. Decorative elements of ${translatedTheme} only on corners. NO FLOWERS. NO DARK COLORS. Soft, dreamy, and airy aesthetic.`;
         
         // Escolha da IA
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
@@ -261,7 +261,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Digital art illustration of ${translatedTheme}. Portrait orientation 9:16. The composition should be a frame where ${translatedTheme} elements decorate the edges, but the center is kept very light and empty for text overlay. High quality, premium aesthetic, strictly following the theme: ${translatedTheme}. NO FLOWERS.`;
+        const prompt = `Digital art of ${translatedTheme} for a diary background. Aspect ratio 9:16. COLORS: Light pastels only. The center area must be nearly white for writing. Borders and corners decorated with ${translatedTheme}. NO FLOWERS. NO DARK BACKGROUNDS. Minimalist and clean.`;
         let imageUrl = null;
 
         try {
