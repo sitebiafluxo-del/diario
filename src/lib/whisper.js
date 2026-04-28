@@ -4,8 +4,10 @@ const WHISPER_API_URL = import.meta.env.VITE_WHISPER_API_URL || 'https://api.ope
 const WHISPER_API_KEY = import.meta.env.VITE_WHISPER_API_KEY || '';
 
 export const TRANSCRIPTION_MODELS = [
-  { id: 'whisper-1', label: 'Whisper', description: 'Rápido e preciso' },
-  { id: 'gpt-4o-transcribe', label: 'GPT-4o', description: 'Mais avançado' },
+  { id: 'groq-whisper-large-v3-turbo', label: 'Groq ✦', description: 'Gratuito e rápido (Groq)' },
+  { id: 'groq-distil-whisper', label: 'Groq Lite ✦', description: 'Gratuito, inglês (Groq)' },
+  { id: 'whisper-1', label: 'Whisper', description: 'OpenAI Whisper (pago)' },
+  { id: 'gpt-4o-transcribe', label: 'GPT-4o', description: 'OpenAI mais avançado (pago)' },
 ];
 
 export function getSavedTranscriptionModel() {
