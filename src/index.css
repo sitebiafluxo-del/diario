@@ -196,7 +196,7 @@ body {
   background-position:0 12px;
 }
 .entry-textarea.stationery { 
-  /* Layer CSS lines ON TOP of the stationery image */
+  /* Layer CSS lines ON TOP of the white fade, ON TOP of the stationery image */
   background-image: 
     repeating-linear-gradient(
       transparent, 
@@ -204,17 +204,18 @@ body {
       rgba(180, 210, 220, 0.4) 31px, 
       rgba(180, 210, 220, 0.4) 32px
     ),
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 1) 35%, rgba(255, 255, 255, 0.85) 100%),
     var(--stationery-img);
-  background-size: 100% 32px, cover;
-  background-position: 0 24px, center top; /* 24px offset = text sits ON the line */
-  background-blend-mode: normal;
+  background-size: 100% 32px, cover, cover;
+  background-position: 0 24px, center center, center center; 
+  background-blend-mode: normal, normal, normal;
   padding: 153px 60px 80px 90px;
   line-height: 32px;
   font-size: 0.95rem;
   background-color: white;
   border: none;
   overflow: hidden;
-  background-attachment: local, local;
+  background-attachment: local, local, local;
   text-shadow: 0 0 2px white, 0 0 5px white; /* Ajuda no contraste */
 }
 .entry-textarea:focus { border-color:var(--primary); }

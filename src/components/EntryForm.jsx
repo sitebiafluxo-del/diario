@@ -238,7 +238,8 @@ export default function EntryForm({ entry, onClose }) {
         'espaco': 'planets and stars',
         'estrela': 'stars',
         'agua': 'clear water, gentle waves, water drops, blue ocean',
-        'água': 'clear water, gentle waves, water drops, blue ocean'
+        'água': 'clear water, gentle waves, water drops, blue ocean',
+        'carro': 'cool cars, automobiles, vehicles'
       };
 
       let translatedTheme = theme.toLowerCase();
@@ -249,8 +250,8 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Nova Estratégia: Sem falar de bordas ou decorações, apenas ilustração minimalista desbotada.
-        const prompt = `Minimalist digital illustration of ${translatedTheme}, portrait 9:16. VERY LIGHT PASTEL COLORS, faded, high-key lighting. The center must be completely empty and white. Only draw ${translatedTheme} at the very top and bottom edges. ABSOLUTELY NO FLOWERS, NO PLANTS, NO BOTANICALS.`;
+        // Nova Estratégia: A IA apenas desenha o tema. O CSS do aplicativo cuida do "fade" branco.
+        const prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. NO PEOPLE, NO FACES, NO FLOWERS, NO PLANTS.`;
         
         // Escolha da IA
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
@@ -263,7 +264,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Minimalist digital art of ${translatedTheme}. Aspect ratio 9:16. Light pastel colors, faded and overexposed style. Lots of empty white space in the center for writing. Only include elements of ${translatedTheme}. ABSOLUTELY NO FLOWERS, NO PLANTS, NO BOTANICALS.`;
+        const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Only include elements of ${translatedTheme}. NO PEOPLE, NO FACES, NO FLOWERS, NO BOTANICALS.`;
         let imageUrl = null;
 
         try {
