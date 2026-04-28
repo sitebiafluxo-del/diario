@@ -45,7 +45,7 @@ export default function EntryForm({ entry, onClose }) {
   const [genSaving, setGenSaving] = useState(false);
   const [genEngine, setGenEngine] = useState('flux'); // 'flux' | 'sdxl'
 
-  const PAGES_SIZE = 12; // deve bater com rows={12} do textarea
+  const PAGES_SIZE = 9; // deve bater com rows={9} do textarea
 
   // Deriva páginas a partir do conteúdo completo
   const getPages = (text) => {
@@ -254,10 +254,10 @@ export default function EntryForm({ entry, onClose }) {
         
         if (genEngine === 'flux') {
           // PROMPT EXCLUSIVO FLUX: Respeitar bordas, centro branco, linhas suaves e cores pastéis
-          prompt = `A decorative frame layout featuring ${translatedTheme}. There is a MASSIVE, blindingly bright, pure solid white radial fade that completely erases the center 80% of the image. The subject must be pushed entirely to the extreme outer edges. The center is pure empty white copy space for absolute maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS. 2D soft digital illustration, 9:16 portrait.`;
+          prompt = `A decorative frame layout featuring ${translatedTheme}. There is a MASSIVE, blindingly bright, pure solid white radial fade that completely erases the center 80% of the image. The subject must be pushed entirely to the extreme outer edges and kept VERY SMALL (only the bottom 10% of the image). The center is pure empty white copy space for absolute maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS. 2D soft digital illustration, 9:16 portrait.`;
         } else {
           // SDXL
-          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. Apply a GIGANTIC, solid bright white radial fade right in the middle, completely erasing the central 80% of the image. The elements must only appear at the borders. The center must be pure empty white to provide absolute maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
+          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. Apply a GIGANTIC, solid bright white radial fade right in the middle, completely erasing the central 80% of the image. The elements must only appear at the extreme bottom edge and must be VERY SMALL. The center must be pure empty white to provide absolute maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
         }
         
         // Escolha da IA
@@ -271,7 +271,7 @@ export default function EntryForm({ entry, onClose }) {
         setGenPreviewUrl(objectUrl);
       } else {
         // DALL-E 3
-        const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Apply a HUGE, intensely bright solid white radial fade in the very center, completely erasing the middle 80% of the image. The elements of ${translatedTheme} must ONLY appear at the outer edges. The center must be perfectly pure white and completely empty for maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
+        const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Apply a HUGE, intensely bright solid white radial fade in the very center, completely erasing the middle 80% of the image. The elements of ${translatedTheme} must ONLY appear at the extreme outer edges and must be VERY SMALL (bottom 10%). The center must be perfectly pure white and completely empty for maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
         let imageUrl = null;
 
         try {
@@ -474,7 +474,7 @@ export default function EntryForm({ entry, onClose }) {
             onChange={(e) => stationery ? handleContentChange(e.target.value) : setContent(e.target.value)}
             className={`entry-textarea ${stationery ? 'stationery' : ''}`}
             style={stationery ? { '--stationery-img': `url(${stationery})` } : {}}
-            rows={stationery ? 12 : 8}
+            rows={stationery ? 9 : 8}
           />
           
           {stationery && (
