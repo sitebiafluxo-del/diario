@@ -253,8 +253,8 @@ export default function EntryForm({ entry, onClose }) {
         let prompt;
         
         if (genEngine === 'flux') {
-          // PROMPT EXCLUSIVO FLUX: Respeitar bordas e centro branco
-          prompt = `A decorative frame layout. The subject is ${translatedTheme}. The ${translatedTheme} elements are drawn EXCLUSIVELY along the top border, bottom border, and side margins. The entire large central area must be left completely blank and pure white. STRICTLY NO FLOWERS. NO BOTANICALS. NO PEOPLE. 2D digital illustration, 9:16 portrait.`;
+          // PROMPT EXCLUSIVO FLUX: Respeitar bordas, centro branco, linhas suaves e cores pastéis
+          prompt = `A decorative frame layout. The subject is ${translatedTheme}. Very soft lines, light pastel colors, dreamy aesthetic. The ${translatedTheme} elements are drawn EXCLUSIVELY along the top border, bottom border, and side margins. The entire large central area must be left completely blank and pure white. STRICTLY NO FLOWERS. NO BOTANICALS. NO PEOPLE. 2D soft digital illustration, 9:16 portrait.`;
         } else {
           // SDXL: Apenas o tema (o CSS faz o fade do centro)
           prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. NO PEOPLE, NO FACES, NO FLOWERS, NO PLANTS.`;
