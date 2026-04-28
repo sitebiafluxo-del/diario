@@ -29,9 +29,11 @@ async function blobToBase64(blob) {
 
 export async function transcribeAudio(audioBlob, model) {
   const selectedModel = model || getSavedTranscriptionModel();
+  console.log('Iniciando transcrição com modelo:', selectedModel);
 
   // 1. Tenta o proxy server-side (produção no Vercel — chave fica segura)
   try {
+    console.log('Tentando transcrição via proxy...');
     const base64 = await blobToBase64(audioBlob);
     const response = await fetch('/api/transcribe', {
       method: 'POST',
@@ -46,19 +48,29 @@ export async function transcribeAudio(audioBlob, model) {
 
     if (response.ok) {
       const data = await response.json();
+      console.log('Transcrição via proxy concluída com sucesso.');
       return { text: data.text, language: data.language || 'unknown', model: selectedModel };
     }
-    // 503 = proxy existe mas chave não configurada; 404 = dev local sem proxy
-  } catch (_) {
-    // proxy não disponível (dev local)
+    
+    console.warn('Proxy de transcrição retornou erro:', response.status);
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 503) {
+       console.info('Chave de API não configurada no servidor. Tentando fallback local...');
+    } else {
+       console.error('Erro na API de transcrição:', errorData);
+    }
+  } catch (err) {
+    console.warn('Proxy de transcrição não disponível ou falhou:', err);
   }
 
   // 2. Fallback: chamada direta com chave local (dev)
   if (!WHISPER_API_KEY) {
+    console.log('Sem VITE_WHISPER_API_KEY. Tentando transcrição via API do navegador...');
     return transcribeWithBrowserAPI(audioBlob);
   }
 
   try {
+    console.log('Tentando transcrição direta via OpenAI API (fallback local)...');
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.webm');
     formData.append('model', selectedModel);
@@ -70,11 +82,16 @@ export async function transcribeAudio(audioBlob, model) {
       body: formData,
     });
 
-    if (!response.ok) throw new Error(`Transcription API error: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+    }
+    
     const data = await response.json();
+    console.log('Transcrição direta concluída com sucesso.');
     return { text: data.text, language: data.language || 'unknown', model: selectedModel };
   } catch (error) {
-    console.error('Transcription failed:', error);
+    console.error('Falha na transcrição direta:', error);
     return transcribeWithBrowserAPI(audioBlob);
   }
 }

@@ -19,24 +19,27 @@ export class AudioRecorder {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 44100,
         },
       });
 
+      const mimeType = this.getSupportedMimeType();
+      console.log('Iniciando gravação com mimeType:', mimeType);
+
       this.mediaRecorder = new MediaRecorder(this.stream, {
-        mimeType: this.getSupportedMimeType(),
+        mimeType: mimeType,
       });
 
       this.audioChunks = [];
       this.startTime = Date.now();
 
       this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           this.audioChunks.push(event.data);
+          console.log('Chunk recebido:', event.data.size, 'bytes');
         }
       };
 
-      this.mediaRecorder.start(100); // Collect data every 100ms
+      this.mediaRecorder.start(250); // Coleta dados a cada 250ms
       this.isRecording = true;
 
       // Duration tracking
@@ -57,6 +60,7 @@ export class AudioRecorder {
   stop() {
     return new Promise((resolve) => {
       if (!this.mediaRecorder || this.mediaRecorder.state === 'inactive') {
+        console.warn('MediaRecorder não está ativo');
         resolve(null);
         return;
       }
@@ -64,10 +68,12 @@ export class AudioRecorder {
       clearInterval(this.durationInterval);
 
       this.mediaRecorder.onstop = () => {
-        const mimeType = this.getSupportedMimeType();
+        const mimeType = this.mediaRecorder.mimeType || this.getSupportedMimeType();
         const blob = new Blob(this.audioChunks, { type: mimeType });
         const url = URL.createObjectURL(blob);
         const duration = (Date.now() - this.startTime) / 1000;
+
+        console.log('Gravação finalizada. Tamanho total:', blob.size, 'bytes');
 
         this.cleanup();
 
@@ -85,15 +91,16 @@ export class AudioRecorder {
       this.stream = null;
     }
     this.mediaRecorder = null;
-    this.audioChunks = [];
+    // Não limpamos audioChunks aqui para permitir a criação do Blob no onstop
   }
 
   getSupportedMimeType() {
     const types = [
       'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/ogg;codecs=opus',
       'audio/mp4',
+      'audio/ogg;codecs=opus',
+      'audio/webm',
+      'audio/wav',
     ];
 
     for (const type of types) {
@@ -102,7 +109,7 @@ export class AudioRecorder {
       }
     }
 
-    return 'audio/webm';
+    return '';
   }
 
   static isSupported() {
