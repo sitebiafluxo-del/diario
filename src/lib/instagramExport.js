@@ -2,119 +2,102 @@ import html2canvas from 'html2canvas';
 
 /**
  * Exporta o registro para uma imagem otimizada para Instagram.
- * Simula o visual do caderno com linhas pautadas e margens precisas.
+ * Respeita rigorosamente as margens e espaçamentos definidos no CSS.
  */
 export async function exportToInstagram(entry, stationeryUrl, fileName = 'bia-diario-post') {
   const container = document.createElement('div');
   container.className = 'insta-export-container';
   
-  // Configurações de estilo para bater com o visual do caderno
-  const LINE_HEIGHT = 44; // Altura da linha no post (ajustada para 1080px)
-  const MARGIN_TOP = 280; // Espaço para o cabeçalho floral do papel
+  // Proporção de escala (1080px largura vs ~390px tela mobile)
+  const SCALE = 2.77;
+  
+  // Medidas oficiais do CSS escaladas para 1080px
+  const LINE_HEIGHT = 32 * SCALE;
+  const MARGIN_TOP = 153 * SCALE;
+  const MARGIN_LEFT = 90 * SCALE;
+  const MARGIN_RIGHT = 60 * SCALE;
+  const LINE_OFFSET = 24 * SCALE; // offset do CSS para o texto sentar na linha
   
   Object.assign(container.style, {
     position: 'fixed',
     left: '-9999px',
     top: '0',
     width: '1080px',
-    height: '1350px', // Formato 4:5 clássico do Instagram
-    backgroundColor: '#fdf8f4',
+    height: '1350px', // Formato 4:5
+    backgroundColor: '#ffffff',
     boxSizing: 'border-box',
     fontFamily: '"Outfit", "Inter", sans-serif',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    // Fundo: Linhas pautadas + Imagem de Papel de Carta
+    // Fundo: Linhas e Papel de Carta respeitando o CSS
     backgroundImage: `
-      linear-gradient(to bottom, transparent ${MARGIN_TOP}px, #e5d5e0 ${MARGIN_TOP}px, #e5d5e0 ${MARGIN_TOP + 1}px, transparent ${MARGIN_TOP + 1}px),
-      linear-gradient(rgba(180, 160, 200, 0.15) 1px, transparent 1px),
+      repeating-linear-gradient(
+        transparent, 
+        transparent ${LINE_HEIGHT - 1}px, 
+        rgba(180, 210, 220, 0.4) ${LINE_HEIGHT - 1}px, 
+        rgba(180, 210, 220, 0.4) ${LINE_HEIGHT}px
+      ),
       ${stationeryUrl ? `url(${stationeryUrl})` : 'none'}
     `,
-    backgroundSize: `100% 100%, 100% ${LINE_HEIGHT}px, cover`,
-    backgroundPosition: `0 0, 0 ${MARGIN_TOP}px, center`,
-    backgroundRepeat: 'no-repeat, repeat, no-repeat',
+    backgroundSize: `100% ${LINE_HEIGHT}px, cover`,
+    backgroundPosition: `0 ${LINE_OFFSET}px, center top`,
+    backgroundRepeat: 'repeat-y, no-repeat',
+    backgroundAttachment: 'local, local'
   });
 
-  // Área do Cabeçalho (Título e Info) - Posicionado na zona limpa do papel
-  const header = document.createElement('div');
-  Object.assign(header.style, {
-    height: `${MARGIN_TOP}px`,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: '0 80px',
-    textAlign: 'center'
-  });
-
-  const title = document.createElement('div');
-  title.innerText = entry.title || 'Meu Diário';
-  Object.assign(title.style, {
-    fontSize: '44px',
-    fontWeight: '700',
-    color: '#462d37',
-    marginBottom: '10px',
-    textTransform: 'uppercase',
-    letterSpacing: '2px'
-  });
-
-  const meta = document.createElement('div');
-  const date = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-  meta.innerText = `${entry.mood || '😊'}  •  ${date}`;
-  Object.assign(meta.style, {
-    fontSize: '24px',
-    color: '#8d757f',
-    fontStyle: 'italic'
-  });
-
-  header.appendChild(title);
-  header.appendChild(meta);
-  container.appendChild(header);
-
-  // Área do Conteúdo (Texto Pautado)
+  // Área do Conteúdo (Texto) - Respeitando os paddings do CSS
   const content = document.createElement('div');
   content.innerText = entry.content;
   Object.assign(content.style, {
-    fontSize: '32px',
+    fontSize: `${0.95 * 28}px`, // 0.95rem convertido para pixels proporcionais
     lineHeight: `${LINE_HEIGHT}px`,
     color: '#281e14',
     whiteSpace: 'pre-wrap',
-    padding: `0 100px 40px 140px`, // Margem esquerda maior como em cadernos
+    padding: `${MARGIN_TOP}px ${MARGIN_RIGHT}px 80px ${MARGIN_LEFT}px`,
     flex: '1',
-    marginTop: '10px' // Pequeno ajuste para alinhar o texto com a primeira linha
+    marginTop: '0'
   });
 
-  container.appendChild(content);
-
-  // Marca d'água sutil no canto
-  const watermark = document.createElement('div');
-  watermark.innerText = 'Bia Diário';
-  Object.assign(watermark.style, {
+  // Título e Meta (Opcional no topo do papel, como no CSS as margens são grandes, o texto começa abaixo)
+  // Se quiser que o título apareça nas margens, podemos adicionar aqui:
+  const headerOverlay = document.createElement('div');
+  Object.assign(headerOverlay.style, {
     position: 'absolute',
-    bottom: '30px',
-    right: '40px',
-    fontSize: '18px',
-    color: '#bc1888',
-    opacity: '0.4',
-    fontWeight: 'bold'
+    top: '100px',
+    left: '0',
+    width: '100%',
+    textAlign: 'center',
+    pointerEvents: 'none'
   });
-  container.appendChild(watermark);
+  
+  const title = document.createElement('div');
+  title.innerText = entry.title || '';
+  Object.assign(title.style, {
+    fontSize: '48px',
+    fontWeight: '700',
+    color: '#462d37',
+    marginBottom: '8px',
+    fontFamily: '"Outfit", sans-serif'
+  });
+  
+  headerOverlay.appendChild(title);
+  container.appendChild(headerOverlay);
+  container.appendChild(content);
 
   document.body.appendChild(container);
 
   try {
     const options = {
-      scale: 2,
+      scale: 1, // Já estamos trabalhando em 1080px
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#fdf8f4',
+      backgroundColor: '#ffffff',
     };
 
-    // Delay para renderização de fontes e imagens
     await new Promise(resolve => setTimeout(resolve, 800));
 
     const canvas = await html2canvas(container, options);
-    
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     const link = document.createElement('a');
     link.download = `${fileName}.jpg`;
