@@ -250,8 +250,15 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Nova Estratégia: A IA apenas desenha o tema. O CSS do aplicativo cuida do "fade" branco.
-        const prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. NO PEOPLE, NO FACES, NO FLOWERS, NO PLANTS.`;
+        let prompt;
+        
+        if (genEngine === 'flux') {
+          // PROMPT EXCLUSIVO FLUX: Respeitar bordas e centro branco
+          prompt = `A decorative frame layout. The subject is ${translatedTheme}. The ${translatedTheme} elements are drawn EXCLUSIVELY along the top border, bottom border, and side margins. The entire large central area must be left completely blank and pure white. STRICTLY NO FLOWERS. NO BOTANICALS. NO PEOPLE. 2D digital illustration, 9:16 portrait.`;
+        } else {
+          // SDXL: Apenas o tema (o CSS faz o fade do centro)
+          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. NO PEOPLE, NO FACES, NO FLOWERS, NO PLANTS.`;
+        }
         
         // Escolha da IA
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
