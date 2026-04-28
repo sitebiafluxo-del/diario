@@ -43,6 +43,7 @@ export default function EntryForm({ entry, onClose }) {
   const [genGenerating, setGenGenerating] = useState(false);
   const [genPreviewUrl, setGenPreviewUrl] = useState(null); // temp URL before saving
   const [genSaving, setGenSaving] = useState(false);
+  const [genEngine, setGenEngine] = useState('flux'); // 'flux' | 'sdxl'
 
   const PAGES_SIZE = 12; // deve bater com rows={12} do textarea
 
@@ -245,9 +246,13 @@ export default function EntryForm({ entry, onClose }) {
       });
 
       if (genModalType === 'free') {
-        // Pollinations (Flux) - Estratégia de "Moldura Temática"
+        // Estratégia de "Moldura Temática"
         const prompt = `A clean white paper with a themed frame made of ${translatedTheme}. The ${translatedTheme} elements are ONLY at the corners and edges. THE CENTER MUST BE EMPTY WHITE WITH GREY HORIZONTAL LINES. STRICTLY NO FLOWERS. NO FLORAL. NO PLANTS. ONLY ${translatedTheme} SUBJECTS. 2D vector art style.`;
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=flux&seed=${Date.now()}`;
+        
+        // Escolha da IA
+        const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=${modelParam}&seed=${Date.now()}`;
+        
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
         const blob = await imgRes.blob();
@@ -589,6 +594,7 @@ export default function EntryForm({ entry, onClose }) {
         <div className="gen-modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowGenModal(false)}>
           <div className="gen-modal animate-slide-up">
             <div className="gen-modal-header">
+          <div className="gen-modal-header">
               <h3>
                 {genModalType === 'free' ? <Zap size={18} /> : <Sparkles size={18} />}
                 {genModalType === 'free' ? 'Gerar papel grátis' : 'Gerar papel com IA'}
@@ -602,6 +608,24 @@ export default function EntryForm({ entry, onClose }) {
               <p className="gen-modal-hint">
                 Descreva o tema do papel. Ex: <em>"borboletas douradas"</em>, <em>"jardim japonês"</em>, <em>"galáxia pastel"</em>
               </p>
+
+              {genModalType === 'free' && (
+                <div className="gen-engine-selector">
+                  <button 
+                    className={`engine-btn ${genEngine === 'flux' ? 'active' : ''}`}
+                    onClick={() => setGenEngine('flux')}
+                  >
+                    Flux (Qualidade)
+                  </button>
+                  <button 
+                    className={`engine-btn ${genEngine === 'sdxl' ? 'active' : ''}`}
+                    onClick={() => setGenEngine('sdxl')}
+                  >
+                    SDXL (Mais fiel)
+                  </button>
+                </div>
+              )}
+
               <div className="gen-modal-input-row">
                 <input
                   id="gen-theme-input"
