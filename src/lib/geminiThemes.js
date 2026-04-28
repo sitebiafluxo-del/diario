@@ -154,13 +154,29 @@ export const DEFAULT_THEMES = {
  * @returns {Promise<object>} Theme object
  */
 export async function generateThemeWithGemini(prompt) {
+  // 1. Tenta o proxy server-side (produção no Vercel)
+  try {
+    const response = await fetch('/api/generate-theme', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (response.ok) {
+      const theme = await response.json();
+      if (theme.name && theme.primaryColor) return theme;
+    }
+    // 503 = chave não configurada no servidor; 404 = dev local
+  } catch (_) {}
+
+  // 2. Fallback: chamada direta com chave local (dev)
   if (!GEMINI_API_KEY) {
     console.warn('Gemini API key not configured. Using default theme.');
     return null;
   }
 
   try {
-    const systemPrompt = `Você é um designer de temas para um app de diário pessoal. 
+    const systemPrompt = `Você é um designer de temas para um app de diário pessoal.
 Gere um tema visual baseado no pedido do usuário.
 
 REGRAS OBRIGATÓRIAS:
@@ -190,33 +206,17 @@ Responda APENAS com JSON válido no formato:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: `${systemPrompt}\n\nPedido do usuário: ${prompt}` },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.8,
-          maxOutputTokens: 500,
-        },
+        contents: [{ parts: [{ text: `${systemPrompt}\n\nPedido do usuário: ${prompt}` }] }],
+        generationConfig: { temperature: 0.8, maxOutputTokens: 500 },
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    // Extract JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const theme = JSON.parse(jsonMatch[0]);
-      return theme;
-    }
+    if (jsonMatch) return JSON.parse(jsonMatch[0]);
 
     throw new Error('Invalid response format');
   } catch (error) {

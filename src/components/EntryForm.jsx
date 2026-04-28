@@ -172,24 +172,42 @@ export default function EntryForm({ entry, onClose }) {
   }
 
   async function handleGenerateAIStationery() {
-    const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
-    if (!apiKey) {
-      alert('Configure VITE_WHISPER_API_KEY para gerar papel com IA.');
-      return;
-    }
     setGeneratingAI(true);
     try {
       const prompt = `Delicate watercolor stationery paper, portrait 9:16. Clean cream/white center area for writing. Decorations only on: top edge (20%), bottom edge (15%), left margin (vertical lines), right edge (light). Pastel colors, soft and dreamy. Theme: ${['Floral', 'Butterflies', 'Garden', 'Vintage'][Math.floor(Math.random() * 4)]}. No horizontal lines, no text.`;
 
-      const res = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' }),
-      });
+      let imageUrl = null;
 
-      if (!res.ok) throw new Error(`DALL-E error: ${res.status}`);
-      const data = await res.json();
-      const imageUrl = data.data?.[0]?.url;
+      // 1. Tenta o proxy server-side (produção no Vercel — chave fica segura)
+      try {
+        const proxyRes = await fetch('/api/generate-stationery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        });
+        if (proxyRes.ok) {
+          const data = await proxyRes.json();
+          imageUrl = data.url;
+        }
+      } catch (_) {}
+
+      // 2. Fallback: chamada direta com chave local (dev)
+      if (!imageUrl) {
+        const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
+        if (!apiKey) {
+          alert('Configure OPENAI_API_KEY no Vercel para gerar papel com IA.');
+          return;
+        }
+        const res = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' }),
+        });
+        if (!res.ok) throw new Error(`DALL-E error: ${res.status}`);
+        const data = await res.json();
+        imageUrl = data.data?.[0]?.url;
+      }
+
       if (!imageUrl) throw new Error('Sem URL na resposta');
 
       // Download e faz upload para o Supabase
