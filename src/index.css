@@ -447,6 +447,9 @@ body {
 .mood-selected:hover { border-color:var(--primary); }
 .mood-emoji-large { font-size:1.5rem; }
 .mood-label { color:var(--text-secondary); }
+.action-button.insta { background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); color: white; }
+.action-button.insta:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(220, 39, 67, 0.3); }
+
 .mood-grid { display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:10px;background:var(--surface);border:2px solid var(--secondary);border-radius:var(--radius-sm);margin-top:6px;animation:fadeIn 0.2s ease; }
 .mood-option { display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:none;background:transparent;border-radius:8px;cursor:pointer;transition:var(--transition); }
 .mood-option:hover,.mood-option.selected { background:rgba(0,0,0,0.06); }
