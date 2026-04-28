@@ -316,11 +316,11 @@ export default function EntryForm({ entry, onClose }) {
   }
 
   async function handleExportInstagram() {
-    if (!formRef.current) return;
     setExportingInsta(true);
     try {
       const fileName = `insta_${date}${title ? '_' + title.slice(0, 10) : ''}`;
-      await exportToInstagram(formRef.current, fileName);
+      const entryData = { title, content, mood };
+      await exportToInstagram(entryData, stationery, fileName);
     } catch (error) {
       alert('Falha ao gerar imagem para Instagram.');
     } finally {
