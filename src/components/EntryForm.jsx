@@ -5,7 +5,7 @@ import { transcribeAudio, TRANSCRIPTION_MODELS, getSavedTranscriptionModel, save
 import MoodSelector from './MoodSelector';
 import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
-import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw, Instagram } from 'lucide-react';
+import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw, Camera } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
 import { exportToInstagram } from '../lib/instagramExport';
 
@@ -556,7 +556,7 @@ export default function EntryForm({ entry, onClose }) {
             disabled={exportingInsta || (!content.trim() && !title.trim())}
             title="Exportar Imagem (Instagram)"
           >
-            {exportingInsta ? <Loader2 size={16} className="spin" /> : <Instagram size={16} />}
+            {exportingInsta ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
             Instagram
           </button>
 
