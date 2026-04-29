@@ -1,5 +1,5 @@
-// Fallback para dev local (não vai para o bundle em produção se VITE_WHISPER_API_KEY
-// for removida das env vars do Vercel após configurar OPENAI_API_KEY server-side)
+import { apiUrl } from './capacitor';
+
 const WHISPER_API_URL = import.meta.env.VITE_WHISPER_API_URL || 'https://api.openai.com/v1/audio/transcriptions';
 const WHISPER_API_KEY = import.meta.env.VITE_WHISPER_API_KEY || '';
 
@@ -35,7 +35,7 @@ export async function transcribeAudio(audioBlob, model) {
   try {
     console.log('Tentando transcrição via proxy...');
     const base64 = await blobToBase64(audioBlob);
-    const response = await fetch('/api/transcribe', {
+    const response = await fetch(apiUrl('/api/transcribe'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

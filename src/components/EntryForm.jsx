@@ -7,6 +7,7 @@ import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
 import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
+import { apiUrl } from '../lib/capacitor';
 
 export default function EntryForm({ entry, onClose }) {
   const { addEntry, editEntry, removeEntry, saveAudio, saveStationery } = useDiary();
@@ -359,7 +360,7 @@ export default function EntryForm({ entry, onClose }) {
         let imageUrl = null;
 
         try {
-          const proxyRes = await fetch('/api/generate-stationery', {
+          const proxyRes = await fetch(apiUrl('/api/generate-stationery'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt }),
