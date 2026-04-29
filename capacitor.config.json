@@ -1,5 +1,25 @@
 {
   "appId": "com.sitebiafluxo.diario",
   "appName": "Bia Diario",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "server": {
+    "allowNavigation": [
+      "*.pollinations.ai",
+      "*.groq.com",
+      "*.openai.com",
+      "*.vercel.app",
+      "*.supabase.co",
+      "*.googleapis.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
 }

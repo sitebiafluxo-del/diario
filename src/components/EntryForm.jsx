@@ -704,31 +704,6 @@ export default function EntryForm({ entry, onClose }) {
             </div>
 
             <div className="gen-modal-body">
-              <p className="gen-modal-hint">
-                Descreva o tema do papel. Ex: <em>"borboletas douradas"</em>, <em>"jardim japonês"</em>, <em>"galáxia pastel"</em>
-              </p>
-
-              {genModalType === 'free' && (
-                <div className="gen-engine-selector">
-                  <button 
-                    type="button"
-                    style={{ zIndex: 50, position: 'relative' }}
-                    className={`engine-btn ${genEngine === 'flux' ? 'active' : ''}`}
-                    onClick={() => { console.log('Engine set to flux'); setGenEngine('flux'); }}
-                  >
-                    Flux (Qualidade)
-                  </button>
-                  <button 
-                    type="button"
-                    style={{ zIndex: 50, position: 'relative' }}
-                    className={`engine-btn ${genEngine === 'sdxl' ? 'active' : ''}`}
-                    onClick={() => { console.log('Engine set to sdxl'); setGenEngine('sdxl'); }}
-                  >
-                    SDXL (Mais fiel)
-                  </button>
-                </div>
-              )}
-
               <div className="gen-modal-input-row">
                 <input
                   id="gen-theme-input"
@@ -738,7 +713,6 @@ export default function EntryForm({ entry, onClose }) {
                   onChange={(e) => setGenTheme(e.target.value)}
                   className="gen-modal-input"
                   onKeyDown={(e) => e.key === 'Enter' && !genGenerating && handleGenerate()}
-                  autoFocus
                 />
                 <button
                   className="gen-modal-btn generate"
@@ -749,6 +723,26 @@ export default function EntryForm({ entry, onClose }) {
                   {genGenerating ? <Loader2 size={18} className="spin" /> : <RefreshCw size={18} />}
                 </button>
               </div>
+
+              {/* Seletor de engine — abaixo do input para ficar visível com teclado aberto */}
+              {genModalType === 'free' && (
+                <div className="gen-engine-selector">
+                  <button
+                    type="button"
+                    className={`engine-btn ${genEngine === 'flux' ? 'active' : ''}`}
+                    onClick={() => setGenEngine('flux')}
+                  >
+                    Flux (Qualidade)
+                  </button>
+                  <button
+                    type="button"
+                    className={`engine-btn ${genEngine === 'sdxl' ? 'active' : ''}`}
+                    onClick={() => setGenEngine('sdxl')}
+                  >
+                    SDXL (Mais fiel)
+                  </button>
+                </div>
+              )}
 
               {/* Fade controls — visíveis apenas após gerar */}
               {genPreviewUrl && !genGenerating && (
