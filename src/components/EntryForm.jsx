@@ -211,6 +211,38 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
+  function applyWhiteFade(blob) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const srcUrl = URL.createObjectURL(blob);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        // Fade radial branco: centro quase branco, bordas transparentes
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const r = Math.max(canvas.width, canvas.height) * 0.52;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0,    'rgba(255,255,255,0.96)');
+        grad.addColorStop(0.30, 'rgba(255,255,255,0.90)');
+        grad.addColorStop(0.55, 'rgba(255,255,255,0.60)');
+        grad.addColorStop(0.78, 'rgba(255,255,255,0.22)');
+        grad.addColorStop(1,    'rgba(255,255,255,0)');
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        URL.revokeObjectURL(srcUrl);
+        canvas.toBlob(resolve, 'image/jpeg', 0.93);
+      };
+      img.src = srcUrl;
+    });
+  }
+
   function openGenModal(type) {
     setGenModalType(type);
     setGenTheme('');
@@ -266,9 +298,9 @@ export default function EntryForm({ entry, onClose }) {
         
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
-        const blob = await imgRes.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        setGenPreviewUrl(objectUrl);
+        const rawBlob = await imgRes.blob();
+        const fadedBlob = await applyWhiteFade(rawBlob);
+        setGenPreviewUrl(URL.createObjectURL(fadedBlob));
       } else {
         // DALL-E 3
         const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Layer a HUGE, intensely bright solid white radial fade ON TOP OF the final image, completely erasing the middle 80%. The elements of ${translatedTheme} must ONLY appear at the extreme outer edges and must be VERY SMALL (bottom 10%). The center must be perfectly pure white and completely empty for maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
@@ -303,7 +335,10 @@ export default function EntryForm({ entry, onClose }) {
         }
 
         if (!imageUrl) throw new Error('Sem URL na resposta');
-        setGenPreviewUrl(imageUrl);
+        const dalleRes = await fetch(imageUrl);
+        const dalleRaw = await dalleRes.blob();
+        const dalleFaded = await applyWhiteFade(dalleRaw);
+        setGenPreviewUrl(URL.createObjectURL(dalleFaded));
       }
     } catch (error) {
       console.error('Falha ao gerar papel:', error);
