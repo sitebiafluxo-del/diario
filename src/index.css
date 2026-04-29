@@ -469,6 +469,9 @@ body {
 .action-button.pdf { background:transparent;color:var(--text-secondary);border:1px solid var(--secondary); }
 .action-button.pdf:hover:not(:disabled) { background:var(--secondary);color:var(--text-primary); }
 .action-button.pdf:disabled { opacity:0.4;cursor:not-allowed; }
+.action-button.instagram { background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:white;border:none; }
+.action-button.instagram:hover:not(:disabled) { opacity:0.88;transform:translateY(-1px); }
+.action-button.instagram:disabled { opacity:0.4;cursor:not-allowed; }
 
 /* ===== MOOD SELECTOR ===== */
 .mood-selector { position:relative; }
