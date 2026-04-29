@@ -256,13 +256,13 @@ export default function EntryForm({ entry, onClose }) {
           // PROMPT EXCLUSIVO FLUX: Respeitar bordas, centro branco, linhas suaves e cores pastéis
           prompt = `A decorative frame layout featuring ${translatedTheme}. Layer a MASSIVE, blindingly bright, pure solid white radial fade ON TOP OF the final image, completely erasing the center 80%. The subject must be pushed entirely to the extreme outer edges and kept VERY SMALL (only the bottom 10% of the image). The center is pure empty white copy space for absolute maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS. 2D soft digital illustration, 9:16 portrait.`;
         } else {
-          // SDXL
-          prompt = `A beautiful digital artwork of ${translatedTheme}, portrait 9:16. Layer a GIGANTIC, solid bright white radial fade ON TOP OF the final artwork, completely erasing the central 80%. The elements must only appear at the extreme bottom edge and must be VERY SMALL (only the bottom 10% of the image). The center must be pure empty white to provide absolute maximum contrast for writing text. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
+          // SDXL — descreve a composição que queremos, não pós-processamento
+          prompt = `Decorative stationery paper border frame, ${translatedTheme} watercolor illustrations only on the outer edges, ornate top border decoration, ornate bottom border decoration, thin left margin decoration, thin right margin decoration, large completely empty pure white center writing area occupying 70 percent of the page, clean white paper background in center, pastel soft colors, portrait 9:16, no text, no watermark, no people, no faces`;
         }
-        
-        // Escolha da IA
+
+        const negativePrompt = 'full scene coverage, subject in center, busy center, dark background, cluttered middle, text, watermark, people, faces, characters, animals in center';
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=${modelParam}&seed=${Date.now()}`;
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=${modelParam}&seed=${Date.now()}&negative_prompt=${encodeURIComponent(negativePrompt)}`;
         
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
