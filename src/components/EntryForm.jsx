@@ -44,6 +44,9 @@ export default function EntryForm({ entry, onClose }) {
   const [genPreviewUrl, setGenPreviewUrl] = useState(null); // temp URL before saving
   const [genSaving, setGenSaving] = useState(false);
   const [genEngine, setGenEngine] = useState('flux'); // 'flux' | 'sdxl'
+  const [genRawBlob, setGenRawBlob] = useState(null); // blob original sem fade
+  const [fadeScale, setFadeScale] = useState(0.52);   // raio do fade (0.2–0.9)
+  const [fadeOpacity, setFadeOpacity] = useState(0.96); // opacidade do centro (0–1)
 
   const PAGES_SIZE = 9; // deve bater com rows={9} do textarea
 
@@ -211,7 +214,7 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
-  function applyWhiteFade(blob) {
+  function applyWhiteFade(blob, scale = fadeScale, opacity = fadeOpacity) {
     return new Promise((resolve) => {
       const img = new Image();
       const srcUrl = URL.createObjectURL(blob);
@@ -222,15 +225,14 @@ export default function EntryForm({ entry, onClose }) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
 
-        // Fade radial branco: centro quase branco, bordas transparentes
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
-        const r = Math.max(canvas.width, canvas.height) * 0.52;
+        const r = Math.max(canvas.width, canvas.height) * scale;
         const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-        grad.addColorStop(0,    'rgba(255,255,255,0.96)');
-        grad.addColorStop(0.30, 'rgba(255,255,255,0.90)');
-        grad.addColorStop(0.55, 'rgba(255,255,255,0.60)');
-        grad.addColorStop(0.78, 'rgba(255,255,255,0.22)');
+        grad.addColorStop(0,    `rgba(255,255,255,${opacity})`);
+        grad.addColorStop(0.35, `rgba(255,255,255,${(opacity * 0.88).toFixed(2)})`);
+        grad.addColorStop(0.60, `rgba(255,255,255,${(opacity * 0.55).toFixed(2)})`);
+        grad.addColorStop(0.82, `rgba(255,255,255,${(opacity * 0.18).toFixed(2)})`);
         grad.addColorStop(1,    'rgba(255,255,255,0)');
 
         ctx.fillStyle = grad;
@@ -240,6 +242,15 @@ export default function EntryForm({ entry, onClose }) {
         canvas.toBlob(resolve, 'image/jpeg', 0.93);
       };
       img.src = srcUrl;
+    });
+  }
+
+  async function reapplyFade(scale, opacity) {
+    if (!genRawBlob) return;
+    const faded = await applyWhiteFade(genRawBlob, scale, opacity);
+    setGenPreviewUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(faded);
     });
   }
 
@@ -299,7 +310,8 @@ export default function EntryForm({ entry, onClose }) {
         const imgRes = await fetch(url);
         if (!imgRes.ok) throw new Error('Pollinations error');
         const rawBlob = await imgRes.blob();
-        const fadedBlob = await applyWhiteFade(rawBlob);
+        setGenRawBlob(rawBlob);
+        const fadedBlob = await applyWhiteFade(rawBlob, fadeScale, fadeOpacity);
         setGenPreviewUrl(URL.createObjectURL(fadedBlob));
       } else {
         // DALL-E 3
@@ -337,7 +349,8 @@ export default function EntryForm({ entry, onClose }) {
         if (!imageUrl) throw new Error('Sem URL na resposta');
         const dalleRes = await fetch(imageUrl);
         const dalleRaw = await dalleRes.blob();
-        const dalleFaded = await applyWhiteFade(dalleRaw);
+        setGenRawBlob(dalleRaw);
+        const dalleFaded = await applyWhiteFade(dalleRaw, fadeScale, fadeOpacity);
         setGenPreviewUrl(URL.createObjectURL(dalleFaded));
       }
     } catch (error) {
@@ -695,6 +708,38 @@ export default function EntryForm({ entry, onClose }) {
                   {genGenerating ? <Loader2 size={18} className="spin" /> : <RefreshCw size={18} />}
                 </button>
               </div>
+
+              {/* Fade controls — visíveis apenas após gerar */}
+              {genPreviewUrl && !genGenerating && (
+                <div className="fade-controls">
+                  <label className="fade-label">
+                    Tamanho do fade
+                    <input
+                      type="range" min="0.2" max="0.9" step="0.05"
+                      value={fadeScale}
+                      onChange={async (e) => {
+                        const v = parseFloat(e.target.value);
+                        setFadeScale(v);
+                        await reapplyFade(v, fadeOpacity);
+                      }}
+                    />
+                    <span>{Math.round(fadeScale * 100)}%</span>
+                  </label>
+                  <label className="fade-label">
+                    Transparência
+                    <input
+                      type="range" min="0" max="1" step="0.05"
+                      value={fadeOpacity}
+                      onChange={async (e) => {
+                        const v = parseFloat(e.target.value);
+                        setFadeOpacity(v);
+                        await reapplyFade(fadeScale, v);
+                      }}
+                    />
+                    <span>{Math.round(fadeOpacity * 100)}%</span>
+                  </label>
+                </div>
+              )}
 
               {/* Preview area */}
               <div className="gen-modal-preview">
