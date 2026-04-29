@@ -102,6 +102,46 @@ export default function EntryForm({ entry, onClose }) {
     }
   }, [currentPage, stationery]);
 
+  // Detecta overflow visual no mobile (texto que quebra linha sem \n)
+  useEffect(() => {
+    if (!stationery || !textareaRef.current) return;
+    const ta = textareaRef.current;
+    if (ta.scrollHeight <= ta.clientHeight + 2) return;
+
+    const text = ta.value;
+    if (!text) return;
+
+    // Busca binária: encontra quantos caracteres cabem sem overflow
+    const saved = ta.value;
+    let lo = 0, hi = text.length;
+    while (lo < hi - 1) {
+      const mid = Math.ceil((lo + hi) / 2);
+      ta.value = text.slice(0, mid);
+      if (ta.scrollHeight <= ta.clientHeight + 2) lo = mid;
+      else hi = mid - 1;
+    }
+    ta.value = saved;
+
+    // Quebra na fronteira de palavra/linha mais próxima
+    let splitAt = lo;
+    while (splitAt > 0 && text[splitAt] !== '\n' && text[splitAt] !== ' ') splitAt--;
+    if (splitAt === 0) splitAt = lo;
+
+    const thisPageText = text.slice(0, splitAt).trimEnd();
+    const overflowText = text.slice(splitAt).trimStart();
+    if (!overflowText) return;
+
+    const newPages = [...pages];
+    newPages[currentPage] = thisPageText;
+    if (currentPage + 1 < newPages.length) {
+      newPages[currentPage + 1] = overflowText + (newPages[currentPage + 1] ? '\n' + newPages[currentPage + 1] : '');
+    } else {
+      newPages.push(overflowText);
+    }
+    setContent(newPages.join('\n'));
+    setCurrentPage(p => p + 1);
+  }, [currentContent, stationery]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const stationeryOptions = [
     { id: 'none', url: null, label: 'Nenhum' },
     { id: 'roses', url: '/backgrounds/stationery_roses.svg', label: 'Rosas' },
