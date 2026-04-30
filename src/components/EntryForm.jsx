@@ -5,10 +5,10 @@ import { transcribeAudio, TRANSCRIPTION_MODELS, getSavedTranscriptionModel, save
 import MoodSelector from './MoodSelector';
 import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
-import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw, Camera } from 'lucide-react';
-import { exportToInstagram } from '../lib/instagramExport';
+import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
-import { apiUrl } from '../lib/capacitor';
+import { apiUrl, isCapacitor } from '../lib/capacitor';
+import { CapacitorHttp } from '@capacitor/core';
 
 export default function EntryForm({ entry, onClose }) {
   const { addEntry, editEntry, removeEntry, saveAudio, saveStationery } = useDiary();
@@ -35,7 +35,6 @@ export default function EntryForm({ entry, onClose }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [transcribing, setTranscribing] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [exportingInsta, setExportingInsta] = useState(false);
   const [uploadingStationery, setUploadingStationery] = useState(false);
   const [transcriptionModel, setTranscriptionModel] = useState(getSavedTranscriptionModel);
 
@@ -97,6 +96,7 @@ export default function EntryForm({ entry, onClose }) {
   };
 
   const formRef = useRef(null);
+  const navigatingRef = useRef(false);
 
   // Foca o textarea e posiciona o cursor no início quando muda de página
   const textareaRef = useRef(null);
@@ -110,6 +110,7 @@ export default function EntryForm({ entry, onClose }) {
   // Detecta overflow visual no mobile (texto que quebra linha sem \n)
   useEffect(() => {
     if (!stationery || !textareaRef.current) return;
+    if (navigatingRef.current) { navigatingRef.current = false; return; }
     const ta = textareaRef.current;
     if (ta.scrollHeight <= ta.clientHeight + 2) return;
 
@@ -259,6 +260,19 @@ export default function EntryForm({ entry, onClose }) {
     }
   }
 
+  async function fetchBlob(url) {
+    // CapacitorHttp patches both fetch and XHR on Android — use CapacitorHttp.get directly for binary
+    if (isCapacitor) {
+      const res = await CapacitorHttp.get({ url, responseType: 'blob' });
+      if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
+      const byteChars = atob(res.data);
+      const bytes = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+      return new Blob([bytes], { type: res.headers['content-type'] || 'image/jpeg' });
+    }
+    return fetch(url).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); });
+  }
+
   function applyWhiteFade(blob, scale = fadeScale, opacity = fadeOpacity) {
     return new Promise((resolve) => {
       const img = new Image();
@@ -352,9 +366,7 @@ export default function EntryForm({ entry, onClose }) {
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=${modelParam}&seed=${Date.now()}&negative_prompt=${encodeURIComponent(negativePrompt)}`;
         
-        const imgRes = await fetch(url);
-        if (!imgRes.ok) throw new Error('Pollinations error');
-        const rawBlob = await imgRes.blob();
+        const rawBlob = await fetchBlob(url);
         setGenRawBlob(rawBlob);
         const fadedBlob = await applyWhiteFade(rawBlob, fadeScale, fadeOpacity);
         setGenPreviewUrl(URL.createObjectURL(fadedBlob));
@@ -392,8 +404,7 @@ export default function EntryForm({ entry, onClose }) {
         }
 
         if (!imageUrl) throw new Error('Sem URL na resposta');
-        const dalleRes = await fetch(imageUrl);
-        const dalleRaw = await dalleRes.blob();
+        const dalleRaw = await fetchBlob(imageUrl);
         setGenRawBlob(dalleRaw);
         const dalleFaded = await applyWhiteFade(dalleRaw, fadeScale, fadeOpacity);
         setGenPreviewUrl(URL.createObjectURL(dalleFaded));
@@ -437,20 +448,11 @@ export default function EntryForm({ entry, onClose }) {
         stationery_url: stationery,
         created_at: new Date(`${date}T${time}:00`).toISOString(),
       });
+    } catch (err) {
+      console.error('Erro ao exportar PDF:', err);
+      alert('Erro ao exportar PDF: ' + err.message);
     } finally {
       setExportingPDF(false);
-    }
-  }
-
-  async function handleExportInstagram() {
-    setExportingInsta(true);
-    try {
-      const dateStr = date.replace(/-/g, '');
-      await exportToInstagram(formRef.current, `bia-diario-${dateStr}`);
-    } catch {
-      alert('Falha ao gerar imagem para Instagram.');
-    } finally {
-      setExportingInsta(false);
     }
   }
 
@@ -587,7 +589,7 @@ export default function EntryForm({ entry, onClose }) {
               <button 
                 className="nav-arrow" 
                 disabled={currentPage === 0}
-                onClick={() => setCurrentPage(p => p - 1)}
+                onClick={() => { navigatingRef.current = true; setCurrentPage(p => p - 1); }}
               >
                 <ChevronLeft size={20} />
               </button>
@@ -674,17 +676,6 @@ export default function EntryForm({ entry, onClose }) {
           >
             {exportingPDF ? <Loader2 size={16} className="spin" /> : <Download size={16} />}
             Salvar PDF
-          </button>
-
-          <button
-            id="export-instagram"
-            className="action-button instagram"
-            onClick={handleExportInstagram}
-            disabled={exportingInsta || (!content.trim() && !title.trim())}
-            title="Exportar Imagem (Instagram)"
-          >
-            {exportingInsta ? <Loader2 size={16} className="spin" /> : <Camera size={16} />}
-            Instagram
           </button>
 
           {isEditing && (

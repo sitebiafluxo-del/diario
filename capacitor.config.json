@@ -1,6 +1,6 @@
 {
   "appId": "com.sitebiafluxo.diario",
-  "appName": "Bia Diario",
+  "appName": "Diario Bia",
   "webDir": "dist",
   "plugins": {
     "CapacitorHttp": {

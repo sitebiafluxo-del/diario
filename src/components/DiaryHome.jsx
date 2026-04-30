@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import DateNavigator from './DateNavigator';
 import EntryList from './EntryList';
@@ -6,12 +6,24 @@ import EntryForm from './EntryForm';
 import ThemeSelector from './ThemeSelector';
 import ButterflyBackground from './ButterflyBackground';
 import { Plus, Palette, LogOut, BookOpen, Sparkles } from 'lucide-react';
+import { App as CapApp } from '@capacitor/app';
+import { isCapacitor } from '../lib/capacitor';
 
 export default function DiaryHome() {
   const { user, signOut, isDemo } = useAuth();
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [showThemes, setShowThemes] = useState(false);
+
+  useEffect(() => {
+    if (!isCapacitor) return;
+    const listener = CapApp.addListener('backButton', () => {
+      if (showThemes) { setShowThemes(false); return; }
+      if (showEntryForm) { setShowEntryForm(false); setEditingEntry(null); return; }
+      CapApp.exitApp();
+    });
+    return () => { listener.then(h => h.remove()); };
+  }, [showEntryForm, showThemes]);
 
   function handleNewEntry() {
     setEditingEntry(null);

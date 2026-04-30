@@ -1,4 +1,7 @@
 import jsPDF from 'jspdf';
+import { isCapacitor } from './capacitor';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 // Tamanho canvas A4 (2× DPI para qualidade de impressão)
 const PX_W = 794 * 2;
@@ -20,36 +23,43 @@ function getTheme() {
 }
 
 // ── Layout baseado no CSS real do textarea ────────────────────────────────────
-// Lê font-size, line-height e padding do elemento .entry-textarea na tela e
-// escala para o canvas 2×, garantindo que o PDF bata com o que o usuário vê.
+// O canvas é sempre 2× o tamanho CSS do A4 (794px → 1588px).
+// Escala fixa = PX_W / 794 = 2, independente da largura da tela.
 
-function getLayout() {
-  const ta = document.querySelector('.entry-textarea.stationery') ||
-             document.querySelector('.entry-textarea');
+const CSS_A4_W = 794; // largura A4 em CSS pixels (96dpi)
+const SCALE    = PX_W / CSS_A4_W; // sempre 2
 
-  if (ta) {
-    const cs  = getComputedStyle(ta);
-    const rect = ta.getBoundingClientRect();
-    if (rect.width > 0) {
-      const scaleX = PX_W / rect.width;
-      const fs     = parseFloat(cs.fontSize)    || 16;
-      const lh     = parseFloat(cs.lineHeight)  || fs * 1.5;
-      const padX   = parseFloat(cs.paddingLeft) || 12;
-
-      return {
-        fontPx:  Math.round(fs  * scaleX),
-        lineH:   Math.round(lh  * scaleX),
-        padX:    Math.round(padX * scaleX),
-      };
-    }
+function getLayout(isStationery = false) {
+  if (isStationery) {
+    // CSS .entry-textarea.stationery: padding 153px 60px 180px 90px
+    return {
+      fontPx:   Math.round(16   * SCALE),
+      lineH:    Math.round(32   * SCALE),
+      padLeft:  Math.round(90   * SCALE * 2),
+      padRight: Math.round(60   * SCALE * 2),
+    };
   }
 
-  // Fallback quando o textarea não está visível (ex.: exportação programática)
-  const lineH = Math.round(PX_H / 22);
+  const ta = document.querySelector('.entry-textarea');
+  if (ta) {
+    const cs = getComputedStyle(ta);
+    const fs       = parseFloat(cs.fontSize)     || 17.6;
+    const lh       = parseFloat(cs.lineHeight)   || 28;
+    const padLeft  = parseFloat(cs.paddingLeft)  || 16;
+    const padRight = parseFloat(cs.paddingRight) || padLeft;
+    return {
+      fontPx:   Math.round(fs       * SCALE),
+      lineH:    Math.round(lh       * SCALE),
+      padLeft:  Math.round(padLeft  * SCALE),
+      padRight: Math.round(padRight * SCALE),
+    };
+  }
+
   return {
-    fontPx: Math.round(lineH * 0.72),
-    lineH,
-    padX:   Math.round(PX_W * 0.06),
+    fontPx:   Math.round(16   * SCALE),
+    lineH:    Math.round(28   * SCALE),
+    padLeft:  Math.round(16   * SCALE),
+    padRight: Math.round(16   * SCALE),
   };
 }
 
@@ -86,12 +96,16 @@ function splitPages(content, linesPerPage) {
 
 function loadImage(url) {
   const fullUrl = url.startsWith('/') ? window.location.origin + url : url;
+  // Cache-bust forces a fresh CORS request, avoiding tainted-canvas from a
+  // prior non-CORS cache entry (e.g. CSS backgroundImage loaded the same URL).
+  const sep = fullUrl.includes('?') ? '&' : '?';
+  const corsUrl = fullUrl + sep + '_cb=' + Date.now();
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload  = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = fullUrl;
+    img.src = corsUrl;
   });
 }
 
@@ -137,7 +151,7 @@ async function renderPage({
   canvas.height = PX_H;
   const ctx = canvas.getContext('2d');
 
-  const { fontPx, lineH, padX } = layout;
+  const { fontPx, lineH, padLeft, padRight } = layout;
   const EMOJI_FONT = `"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
 
   // 1. Fundo
@@ -156,7 +170,7 @@ async function renderPage({
   // 2. Zona de texto
   const TEXT_TOP = isFirstPage ? Math.round(PX_H * 0.27) : Math.round(PX_H * 0.06);
   const TEXT_BTM = Math.round(PX_H * 0.91);
-  const TEXT_W   = PX_W - padX * 2;
+  const TEXT_W   = PX_W - padLeft - padRight;
 
   // 3. Linhas do caderno
   ctx.strokeStyle = theme.lineColor;
@@ -164,8 +178,8 @@ async function renderPage({
   setLineDash(ctx, theme.lineStyle);
   for (let y = TEXT_TOP; y <= TEXT_BTM; y += lineH) {
     ctx.beginPath();
-    ctx.moveTo(padX - 8, y);
-    ctx.lineTo(PX_W - padX + 8, y);
+    ctx.moveTo(padLeft - 8, y);
+    ctx.lineTo(PX_W - padRight + 8, y);
     ctx.stroke();
   }
   ctx.setLineDash([]);
@@ -183,11 +197,16 @@ async function renderPage({
     }
 
     if (title) {
-      ctx.font      = `bold ${Math.round(fontPx * 1.35)}px Patrick Hand,cursive,${EMOJI_FONT}`;
+      const titleFontPx = Math.round(fontPx * 1.35);
+      ctx.font      = `bold ${titleFontPx}px Patrick Hand,cursive,${EMOJI_FONT}`;
       ctx.textAlign = 'center';
       ctx.fillStyle = theme.textPrimary;
-      ctx.fillText(title, PX_W / 2, hy, TEXT_W);
-      hy += Math.round(fontPx * 1.6);
+      const titleLines = wrapLine(ctx, title, TEXT_W);
+      for (const tl of titleLines) {
+        ctx.fillText(tl, PX_W / 2, hy);
+        hy += Math.round(titleFontPx * 1.3);
+      }
+      hy += Math.round(fontPx * 0.3);
     }
 
     ctx.strokeStyle = theme.primary;
@@ -217,7 +236,7 @@ async function renderPage({
     const wrapped = wrapLine(ctx, rawLine, TEXT_W);
     for (const wline of wrapped) {
       if (y > TEXT_BTM) break;
-      ctx.fillText(wline, padX, y);
+      ctx.fillText(wline, padLeft, y);
       y += lineH;
     }
   }
@@ -228,7 +247,7 @@ async function renderPage({
     ctx.fillStyle   = theme.textSecondary;
     ctx.textAlign   = 'right';
     ctx.globalAlpha = 0.55;
-    ctx.fillText(`${pageNum} / ${totalPages}`, PX_W - padX, PX_H - 28);
+    ctx.fillText(`${pageNum} / ${totalPages}`, PX_W - padRight, PX_H - 28);
     ctx.globalAlpha = 1;
   }
 
@@ -239,7 +258,7 @@ async function renderPage({
 
 export async function exportEntryToPDF(entry) {
   const theme  = getTheme();
-  const layout = getLayout();
+  const layout = getLayout(!!entry.stationery_url);
 
   // Calcula linhas por página a partir do layout real:
   // área útil (sem cabeçalho) ÷ altura de linha
@@ -269,12 +288,48 @@ export async function exportEntryToPDF(entry) {
       totalPages:   pages.length,
     });
 
-    doc.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, A4_W, A4_H);
+    let dataUrl;
+    try {
+      dataUrl = canvas.toDataURL('image/jpeg', 0.93);
+    } catch {
+      // Canvas tainted (stationery CORS issue) — re-render without background
+      const fallback = await renderPage({
+        stationeryImg: null,
+        isFirstPage:  i === 0,
+        title:        entry.title      || '',
+        mood:         entry.mood       || '',
+        createdAt:    entry.created_at || '',
+        content:      pages[i],
+        theme,
+        layout,
+        pageNum:      i + 1,
+        totalPages:   pages.length,
+      });
+      dataUrl = fallback.toDataURL('image/jpeg', 0.93);
+    }
+    doc.addImage(dataUrl, 'JPEG', 0, 0, A4_W, A4_H);
   }
 
   const dateStr   = entry.created_at ? entry.created_at.split('T')[0] : 'diario';
   const titleSlug = entry.title
     ? '_' + entry.title.slice(0, 20).replace(/[^a-zA-Z0-9À-ú]/g, '_')
     : '';
-  doc.save(`diario${titleSlug}_${dateStr}.pdf`);
+  const filename = `diario${titleSlug}_${dateStr}.pdf`;
+
+  if (isCapacitor) {
+    const base64 = doc.output('datauristring').split(',')[1];
+    const saved = await Filesystem.writeFile({
+      path: filename,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+    await Share.share({
+      title: filename,
+      url: saved.uri,
+      dialogTitle: 'Salvar ou compartilhar PDF',
+    });
+  } else {
+    doc.save(filename);
+  }
 }
