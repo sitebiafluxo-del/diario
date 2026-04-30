@@ -168,7 +168,11 @@ async function renderPage({
   }
 
   // 2. Zona de texto
-  const TEXT_TOP = isFirstPage ? Math.round(PX_H * 0.27) : Math.round(PX_H * 0.06);
+  // Stationery tem borda floral grande no topo (~35%), então empurra mais pra baixo
+  const hasStationery = !!stationeryImg;
+  const TEXT_TOP = isFirstPage
+    ? Math.round(PX_H * (hasStationery ? 0.24 : 0.27))
+    : Math.round(PX_H * 0.06);
   const TEXT_BTM = Math.round(PX_H * 0.91);
   const TEXT_W   = PX_W - padLeft - padRight;
 
@@ -186,7 +190,9 @@ async function renderPage({
 
   // 4. Cabeçalho (apenas primeira página)
   if (isFirstPage) {
-    let hy = Math.round(PX_H * 0.07);
+    // Com stationery: posiciona no espaço branco abaixo das flores (~30%)
+    // Sem stationery: posiciona no topo (~7%)
+    let hy = Math.round(PX_H * (hasStationery ? 0.16 : 0.07));
 
     if (mood) {
       ctx.font      = `${Math.round(fontPx * 2.2)}px ${EMOJI_FONT}`;

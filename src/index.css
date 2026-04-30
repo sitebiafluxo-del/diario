@@ -206,14 +206,16 @@ body {
     ),
     var(--stationery-img);
   background-size: 100% 32px, cover;
-  background-position: 0 24px, center center; 
+  background-position: 0 56px, center center;
   background-blend-mode: normal, normal;
-  padding: 153px 60px 180px 90px;
+  padding: 185px 60px 180px 90px;
   line-height: 32px;
   font-size: 0.95rem;
   background-color: white;
   border: none;
   overflow: hidden;
+  height: calc(185px + 9 * 32px + 180px);
+  resize: none;
   background-attachment: local, local, local;
   text-shadow: 0 0 2px white, 0 0 5px white; /* Ajuda no contraste */
 }

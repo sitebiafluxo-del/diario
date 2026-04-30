@@ -10,6 +10,48 @@ import { exportEntryToPDF } from '../lib/pdfExport';
 import { apiUrl, isCapacitor } from '../lib/capacitor';
 import { CapacitorHttp } from '@capacitor/core';
 
+// Encontra o melhor ponto de quebra de sílaba em pt-BR dentro de 'word',
+// buscando de maxPos para trás. Retorna o índice onde inserir o hífen, ou -1.
+function findPtBrBreak(word, maxPos) {
+  const vowels = new Set('aeiouáéíóúâêîôûãõàäëïöüAEIOUÁÉÍÓÚÂÊÎÔÛÃÕÀÄËÏÖÜ');
+  const diphthongs = new Set([
+    'ai','ei','oi','ui','au','eu','ou','ia','ie','io','iu','ua','ue','uo',
+    'ão','ãe','ãi',
+  ]);
+  // Dígrafo/cluster que nunca se separa
+  const clusters = new Set([
+    'bl','br','cl','cr','dr','fl','fr','gl','gr','pl','pr','tr','vl','vr',
+    'ch','lh','nh','rr','ss','sc','sç','qu','gu','ct','pt','gn','mn','ps',
+  ]);
+
+  const isVowel = c => vowels.has(c);
+  const w = word.toLowerCase();
+  const limit = Math.min(maxPos - 1, w.length - 2);
+
+  for (let i = limit; i >= 2; i--) {
+    const prev = w[i - 1];
+    const curr = w[i];
+    const next = w[i + 1] ?? '';
+    if (!prev || !curr) continue;
+
+    const pairPC = prev + curr;
+    const pairCN = curr + next;
+
+    if (clusters.has(pairPC)) continue;
+    if (isVowel(prev) && isVowel(curr) && diphthongs.has(pairPC)) continue;
+
+    // Vogal → Consoante (se consoante não forma cluster com a próxima)
+    if (isVowel(prev) && !isVowel(curr) && !clusters.has(pairCN)) return i;
+    // Consoante → Vogal (não é cluster)
+    if (!isVowel(prev) && isVowel(curr)) return i;
+    // Consoante → Consoante (não é cluster)
+    if (!isVowel(prev) && !isVowel(curr)) return i;
+    // Hiato (duas vogais, não ditongo)
+    if (isVowel(prev) && isVowel(curr)) return i;
+  }
+  return -1;
+}
+
 export default function EntryForm({ entry, onClose }) {
   const { addEntry, editEntry, removeEntry, saveAudio, saveStationery } = useDiary();
   const stationeryInputRef = useRef(null);
@@ -70,8 +112,6 @@ export default function EntryForm({ entry, onClose }) {
     const lines = newText.split('\n');
 
     if (lines.length > PAGES_SIZE) {
-      // Overflow: mantém as primeiras PAGES_SIZE linhas nesta página
-      // e move o restante para o início da próxima
       const thisPage = lines.slice(0, PAGES_SIZE).join('\n');
       const overflow = lines.slice(PAGES_SIZE).join('\n');
 
@@ -79,7 +119,6 @@ export default function EntryForm({ entry, onClose }) {
       newPages[currentPage] = thisPage;
 
       if (currentPage + 1 < newPages.length) {
-        // Prepend overflow na página seguinte existente
         newPages[currentPage + 1] = overflow
           + (newPages[currentPage + 1] ? '\n' + newPages[currentPage + 1] : '');
       } else {
@@ -92,7 +131,65 @@ export default function EntryForm({ entry, onClose }) {
       const newPages = [...pages];
       newPages[currentPage] = newText;
       setContent(newPages.join('\n'));
+      // Verifica overflow visual após o DOM atualizar
+      requestAnimationFrame(() => checkVisualOverflow(newPages, newText));
     }
+  };
+
+  const checkVisualOverflow = (currentPages, text) => {
+    if (!textareaRef.current) return;
+    const ta = textareaRef.current;
+    if (ta.scrollHeight <= ta.clientHeight + 2) return;
+
+    const saved = ta.value;
+    let lo = 0, hi = text.length;
+    while (lo < hi - 1) {
+      const mid = Math.ceil((lo + hi) / 2);
+      ta.value = text.slice(0, mid);
+      if (ta.scrollHeight <= ta.clientHeight + 2) lo = mid;
+      else hi = mid - 1;
+    }
+    ta.value = saved;
+
+    let splitAt = lo;
+    let hyphen = '';
+
+    if (splitAt > 0 && text[splitAt] !== '\n' && text[splitAt] !== ' ') {
+      // Estamos no meio de uma palavra — encontra seus limites
+      let wordStart = splitAt;
+      while (wordStart > 0 && text[wordStart - 1] !== ' ' && text[wordStart - 1] !== '\n') wordStart--;
+
+      const charsIntoWord = splitAt - wordStart;
+
+      if (charsIntoWord >= 3) {
+        let wordEnd = wordStart;
+        while (wordEnd < text.length && text[wordEnd] !== ' ' && text[wordEnd] !== '\n') wordEnd++;
+        const word = text.slice(wordStart, wordEnd);
+        const breakPos = findPtBrBreak(word, charsIntoWord);
+        if (breakPos > 0) {
+          splitAt = wordStart + breakPos;
+          hyphen = '-';
+        } else {
+          splitAt = wordStart > 0 ? wordStart : lo;
+        }
+      } else {
+        splitAt = wordStart > 0 ? wordStart : lo;
+      }
+    }
+
+    const thisPageText = text.slice(0, splitAt).trimEnd() + hyphen;
+    const overflowText = text.slice(splitAt).trimStart();
+    if (!overflowText) return;
+
+    const newPages = [...currentPages];
+    newPages[currentPage] = thisPageText;
+    if (currentPage + 1 < newPages.length) {
+      newPages[currentPage + 1] = overflowText + (newPages[currentPage + 1] ? '\n' + newPages[currentPage + 1] : '');
+    } else {
+      newPages.push(overflowText);
+    }
+    setContent(newPages.join('\n'));
+    setCurrentPage(p => p + 1);
   };
 
   const formRef = useRef(null);
@@ -107,46 +204,10 @@ export default function EntryForm({ entry, onClose }) {
     }
   }, [currentPage, stationery]);
 
-  // Detecta overflow visual no mobile (texto que quebra linha sem \n)
+  // Reseta navigatingRef quando muda de página via botão
   useEffect(() => {
-    if (!stationery || !textareaRef.current) return;
-    if (navigatingRef.current) { navigatingRef.current = false; return; }
-    const ta = textareaRef.current;
-    if (ta.scrollHeight <= ta.clientHeight + 2) return;
-
-    const text = ta.value;
-    if (!text) return;
-
-    // Busca binária: encontra quantos caracteres cabem sem overflow
-    const saved = ta.value;
-    let lo = 0, hi = text.length;
-    while (lo < hi - 1) {
-      const mid = Math.ceil((lo + hi) / 2);
-      ta.value = text.slice(0, mid);
-      if (ta.scrollHeight <= ta.clientHeight + 2) lo = mid;
-      else hi = mid - 1;
-    }
-    ta.value = saved;
-
-    // Quebra na fronteira de palavra/linha mais próxima
-    let splitAt = lo;
-    while (splitAt > 0 && text[splitAt] !== '\n' && text[splitAt] !== ' ') splitAt--;
-    if (splitAt === 0) splitAt = lo;
-
-    const thisPageText = text.slice(0, splitAt).trimEnd();
-    const overflowText = text.slice(splitAt).trimStart();
-    if (!overflowText) return;
-
-    const newPages = [...pages];
-    newPages[currentPage] = thisPageText;
-    if (currentPage + 1 < newPages.length) {
-      newPages[currentPage + 1] = overflowText + (newPages[currentPage + 1] ? '\n' + newPages[currentPage + 1] : '');
-    } else {
-      newPages.push(overflowText);
-    }
-    setContent(newPages.join('\n'));
-    setCurrentPage(p => p + 1);
-  }, [currentContent, stationery]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (navigatingRef.current) navigatingRef.current = false;
+  }, [currentPage]);
 
   const stationeryOptions = [
     { id: 'none', url: null, label: 'Nenhum' },
