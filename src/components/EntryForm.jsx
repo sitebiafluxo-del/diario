@@ -92,7 +92,7 @@ export default function EntryForm({ entry, onClose }) {
   const [fadeScale, setFadeScale] = useState(0.52);   // raio do fade (0.2–0.9)
   const [fadeOpacity, setFadeOpacity] = useState(0.96); // opacidade do centro (0–1)
 
-  const PAGES_SIZE = 9; // deve bater com rows={9} do textarea
+  const PAGES_SIZE = 5; // deve bater com rows={5} do textarea
 
   // Deriva páginas a partir do conteúdo completo
   const getPages = (text) => {
@@ -642,7 +642,7 @@ export default function EntryForm({ entry, onClose }) {
             onChange={(e) => stationery ? handleContentChange(e.target.value) : setContent(e.target.value)}
             className={`entry-textarea ${stationery ? 'stationery' : ''}`}
             style={stationery ? { '--stationery-img': `url(${stationery})` } : {}}
-            rows={stationery ? 9 : 8}
+            rows={stationery ? 5 : 8}
           />
           
           {stationery && (

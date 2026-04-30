@@ -214,7 +214,7 @@ body {
   background-color: white;
   border: none;
   overflow: hidden;
-  height: calc(185px + 9 * 32px + 180px);
+  height: calc(185px + 5 * 32px + 180px);
   resize: none;
   background-attachment: local, local, local;
   text-shadow: 0 0 2px white, 0 0 5px white; /* Ajuda no contraste */
