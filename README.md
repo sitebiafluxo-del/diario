@@ -157,8 +157,13 @@ cd android && ./gradlew assembleRelease
 **Keystore release:**
 - Arquivo: `android/bia-diario-release.jks`
 - Alias: `bia-diario`
-- Senha: `biaDiario2024`
+- Senha: variável de ambiente `KEYSTORE_PASSWORD` (nunca commitar a senha)
 - **Não commitar** — obrigatório para atualizações na Play Store
+
+**Antes de buildar**, exportar localmente:
+```bash
+export KEYSTORE_PASSWORD="sua_senha_aqui"
+```
 
 **Atenção:** Arquivos de recurso Android não podem ter espaços no nome. Se aparecer erro `' ' is not a valid file-based resource name`, remover arquivos `config N.xml` de `android/app/src/main/res/xml/`.
 

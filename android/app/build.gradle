@@ -19,9 +19,9 @@ android {
     signingConfigs {
         release {
             storeFile file('../../android/bia-diario-release.jks')
-            storePassword 'biaDiario2024'
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: ""
             keyAlias 'bia-diario'
-            keyPassword 'biaDiario2024'
+            keyPassword System.getenv("KEYSTORE_PASSWORD") ?: ""
         }
     }
     buildTypes {
