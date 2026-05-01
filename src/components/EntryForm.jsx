@@ -92,7 +92,7 @@ export default function EntryForm({ entry, onClose }) {
   const [fadeScale, setFadeScale] = useState(0.52);   // raio do fade (0.2–0.9)
   const [fadeOpacity, setFadeOpacity] = useState(0.96); // opacidade do centro (0–1)
 
-  const PAGES_SIZE = 5; // deve bater com rows={5} do textarea
+  const PAGES_SIZE = 6; // deve bater com rows={6} do textarea
 
   // Deriva páginas a partir do conteúdo completo
   const getPages = (text) => {
@@ -109,6 +109,15 @@ export default function EntryForm({ entry, onClose }) {
   const currentContent = pages[currentPage] || '';
 
   const handleContentChange = (newText) => {
+    // Página vazia em página não-inicial → remove e volta para anterior
+    if (!newText.trim() && currentPage > 0) {
+      const newPages = [...pages];
+      newPages.splice(currentPage, 1);
+      setContent(newPages.join('\n'));
+      setCurrentPage(p => p - 1);
+      return;
+    }
+
     const lines = newText.split('\n');
 
     if (lines.length > PAGES_SIZE) {
@@ -130,9 +139,17 @@ export default function EntryForm({ entry, onClose }) {
     } else {
       const newPages = [...pages];
       newPages[currentPage] = newText;
-      setContent(newPages.join('\n'));
-      // Verifica overflow visual após o DOM atualizar
-      requestAnimationFrame(() => checkVisualOverflow(newPages, newText));
+
+      // Página ficou vazia e não é a primeira → remove e volta para anterior
+      if (!newText.trim() && currentPage > 0) {
+        newPages.splice(currentPage, 1);
+        setContent(newPages.join('\n'));
+        navigatingRef.current = true;
+        setCurrentPage(p => p - 1);
+      } else {
+        setContent(newPages.join('\n'));
+        requestAnimationFrame(() => checkVisualOverflow(newPages, newText));
+      }
     }
   };
 
@@ -151,33 +168,12 @@ export default function EntryForm({ entry, onClose }) {
     }
     ta.value = saved;
 
+    // Recua até o limite de palavra (espaço ou newline) para não cortar no meio
     let splitAt = lo;
-    let hyphen = '';
+    while (splitAt > 0 && text[splitAt] !== '\n' && text[splitAt] !== ' ') splitAt--;
+    if (splitAt === 0) splitAt = lo; // palavra única enorme: corta no caractere
 
-    if (splitAt > 0 && text[splitAt] !== '\n' && text[splitAt] !== ' ') {
-      // Estamos no meio de uma palavra — encontra seus limites
-      let wordStart = splitAt;
-      while (wordStart > 0 && text[wordStart - 1] !== ' ' && text[wordStart - 1] !== '\n') wordStart--;
-
-      const charsIntoWord = splitAt - wordStart;
-
-      if (charsIntoWord >= 3) {
-        let wordEnd = wordStart;
-        while (wordEnd < text.length && text[wordEnd] !== ' ' && text[wordEnd] !== '\n') wordEnd++;
-        const word = text.slice(wordStart, wordEnd);
-        const breakPos = findPtBrBreak(word, charsIntoWord);
-        if (breakPos > 0) {
-          splitAt = wordStart + breakPos;
-          hyphen = '-';
-        } else {
-          splitAt = wordStart > 0 ? wordStart : lo;
-        }
-      } else {
-        splitAt = wordStart > 0 ? wordStart : lo;
-      }
-    }
-
-    const thisPageText = text.slice(0, splitAt).trimEnd() + hyphen;
+    const thisPageText = text.slice(0, splitAt).trimEnd();
     const overflowText = text.slice(splitAt).trimStart();
     if (!overflowText) return;
 
@@ -241,27 +237,57 @@ export default function EntryForm({ entry, onClose }) {
       
       if (result && result.text) {
         console.log('Texto transcrito com sucesso:', result.text);
-        
-        // Atualiza o conteúdo
-        setContent((prev) => {
-          const separator = prev.trim() ? '\n\n' : '';
-          const newContent = prev + separator + result.text;
-          
-          // Se houver papelaria, vamos calcular a página e mudar para a última
-          if (stationery) {
-            const lines = newContent.split('\n');
-            const totalPages = Math.ceil(lines.length / PAGES_SIZE) || 1;
-            setCurrentPage(totalPages - 1);
-          }
-          
-          return newContent;
-        });
 
-        // Foca no campo de texto após um pequeno delay para o React renderizar
+        if (stationery && textareaRef.current) {
+          // Divide o texto transcrito em páginas medindo overflow real no textarea
+          const ta = textareaRef.current;
+          const currentPageContent = pages[currentPage] || '';
+          const sep = currentPageContent.trim() ? ' ' : '';
+          const fullText = currentPageContent + sep + result.text;
+
+          const savedValue = ta.value;
+          const newPageContents = [];
+          let remaining = fullText;
+
+          while (remaining.length > 0) {
+            ta.value = remaining;
+            if (ta.scrollHeight <= ta.clientHeight + 2) {
+              newPageContents.push(remaining);
+              break;
+            }
+            // Busca binária: quantos chars cabem na página
+            let lo = 0, hi = remaining.length;
+            while (lo < hi - 1) {
+              const mid = Math.ceil((lo + hi) / 2);
+              ta.value = remaining.slice(0, mid);
+              if (ta.scrollHeight <= ta.clientHeight + 2) lo = mid;
+              else hi = mid - 1;
+            }
+            // Recua até limite de palavra
+            let splitAt = lo;
+            while (splitAt > 0 && remaining[splitAt] !== '\n' && remaining[splitAt] !== ' ') splitAt--;
+            if (splitAt === 0) splitAt = lo;
+
+            newPageContents.push(remaining.slice(0, splitAt).trimEnd());
+            remaining = remaining.slice(splitAt).trimStart();
+          }
+
+          ta.value = savedValue;
+
+          const newPages = [...pages];
+          newPages.splice(currentPage, 1, ...newPageContents);
+          setContent(newPages.join('\n'));
+          setCurrentPage(currentPage + newPageContents.length - 1);
+        } else {
+          setContent((prev) => {
+            const separator = prev.trim() ? '\n\n' : '';
+            return prev + separator + result.text;
+          });
+        }
+
         setTimeout(() => {
           if (textareaRef.current) {
             textareaRef.current.focus();
-            textareaRef.current.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
           }
         }, 100);
 
@@ -642,7 +668,7 @@ export default function EntryForm({ entry, onClose }) {
             onChange={(e) => stationery ? handleContentChange(e.target.value) : setContent(e.target.value)}
             className={`entry-textarea ${stationery ? 'stationery' : ''}`}
             style={stationery ? { '--stationery-img': `url(${stationery})` } : {}}
-            rows={stationery ? 5 : 8}
+            rows={stationery ? 6 : 8}
           />
           
           {stationery && (

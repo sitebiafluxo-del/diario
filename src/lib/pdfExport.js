@@ -126,6 +126,22 @@ function wrapLine(ctx, text, maxWidth) {
   const result = [];
   let current = '';
   for (const word of words) {
+    // Palavra maior que a largura: split caractere a caractere
+    if (ctx.measureText(word).width > maxWidth) {
+      if (current) { result.push(current); current = ''; }
+      let buf = '';
+      for (const ch of word) {
+        const test = buf + ch;
+        if (ctx.measureText(test).width > maxWidth) {
+          if (buf) result.push(buf);
+          buf = ch;
+        } else {
+          buf = test;
+        }
+      }
+      current = buf;
+      continue;
+    }
     const test = current ? `${current} ${word}` : word;
     if (ctx.measureText(test).width > maxWidth && current) {
       result.push(current);
@@ -262,65 +278,112 @@ async function renderPage({
 
 // ── Export principal ──────────────────────────────────────────────────────────
 
-export async function exportEntryToPDF(entry) {
-  const theme  = getTheme();
-  const layout = getLayout(!!entry.stationery_url);
-
-  // Calcula linhas por página a partir do layout real:
-  // área útil (sem cabeçalho) ÷ altura de linha
-  const usableH    = Math.round(PX_H * 0.91) - Math.round(PX_H * 0.06);
-  const linesPerPage = Math.max(6, Math.floor(usableH / layout.lineH));
-
-  const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pages = splitPages(entry.content, linesPerPage);
-
-  const stationeryImg = entry.stationery_url
-    ? await loadImage(entry.stationery_url)
-    : null;
-
-  for (let i = 0; i < pages.length; i++) {
-    if (i > 0) doc.addPage();
-
-    const canvas = await renderPage({
-      stationeryImg,
-      isFirstPage:  i === 0,
-      title:        entry.title      || '',
-      mood:         entry.mood       || '',
-      createdAt:    entry.created_at || '',
-      content:      pages[i],
-      theme,
-      layout,
-      pageNum:      i + 1,
-      totalPages:   pages.length,
-    });
-
-    let dataUrl;
-    try {
-      dataUrl = canvas.toDataURL('image/jpeg', 0.93);
-    } catch {
-      // Canvas tainted (stationery CORS issue) — re-render without background
-      const fallback = await renderPage({
-        stationeryImg: null,
-        isFirstPage:  i === 0,
-        title:        entry.title      || '',
-        mood:         entry.mood       || '',
-        createdAt:    entry.created_at || '',
-        content:      pages[i],
-        theme,
-        layout,
-        pageNum:      i + 1,
-        totalPages:   pages.length,
-      });
-      dataUrl = fallback.toDataURL('image/jpeg', 0.93);
-    }
-    doc.addImage(dataUrl, 'JPEG', 0, 0, A4_W, A4_H);
+async function renderPageSafe(params) {
+  try {
+    const c = await renderPage(params);
+    return c.toDataURL('image/jpeg', 0.93);
+  } catch {
+    const c = await renderPage({ ...params, stationeryImg: null });
+    return c.toDataURL('image/jpeg', 0.93);
   }
+}
+
+export async function exportEntryToPDF(entry) {
+  const theme        = getTheme();
+  const isStationery = !!entry.stationery_url;
+  const layout       = getLayout(isStationery);
+
+  const usableH      = Math.round(PX_H * 0.91) - Math.round(PX_H * 0.06);
+  // Stationery: 6 linhas por página (igual ao PAGES_SIZE do app)
+  // Sem stationery: calcula pela geometria do A4
+  const linesPerPage = isStationery ? 6 : Math.floor(usableH / layout.lineH);
+
+  const stationeryImg = isStationery ? await loadImage(entry.stationery_url) : null;
+  const pages         = splitPages(entry.content, linesPerPage);
 
   const dateStr   = entry.created_at ? entry.created_at.split('T')[0] : 'diario';
   const titleSlug = entry.title
     ? '_' + entry.title.slice(0, 20).replace(/[^a-zA-Z0-9À-ú]/g, '_')
     : '';
   const filename = `diario${titleSlug}_${dateStr}.pdf`;
+
+  if (isStationery) {
+    // Landscape A4: 2 páginas portrait lado a lado (297mm × 210mm)
+    // Cada metade: PX_H wide × PX_W tall (canvas do portrait girado)
+    const LAND_W = PX_H; // 2246px
+    const LAND_H = PX_W; // 1588px
+    const HALF_W = LAND_W / 2;
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    for (let i = 0; i < pages.length; i += 2) {
+      if (i > 0) doc.addPage();
+
+      const landCanvas = document.createElement('canvas');
+      landCanvas.width  = LAND_W;
+      landCanvas.height = LAND_H;
+      const ctx = landCanvas.getContext('2d');
+      ctx.fillStyle = '#fffdf7';
+      ctx.fillRect(0, 0, LAND_W, LAND_H);
+
+      const baseParams = { stationeryImg, title: entry.title || '', mood: entry.mood || '', createdAt: entry.created_at || '', theme, layout, totalPages: pages.length };
+
+      // Ambas as páginas mostram header (emoji + data) como no editor
+      const leftCanvas = await renderPage({ ...baseParams, isFirstPage: true, content: pages[i], pageNum: i + 1 });
+      ctx.drawImage(leftCanvas, 0, 0, HALF_W, LAND_H);
+
+      if (i + 1 < pages.length) {
+        const rightCanvas = await renderPage({ ...baseParams, isFirstPage: true, content: pages[i + 1], pageNum: i + 2 });
+        ctx.drawImage(rightCanvas, HALF_W, 0, HALF_W, LAND_H);
+      }
+
+      let dataUrl;
+      try {
+        dataUrl = landCanvas.toDataURL('image/jpeg', 0.93);
+      } catch {
+        ctx.fillStyle = '#fffdf7';
+        ctx.fillRect(0, 0, LAND_W, LAND_H);
+        const lc = await renderPage({ ...baseParams, stationeryImg: null, isFirstPage: true, content: pages[i], pageNum: i + 1 });
+        ctx.drawImage(lc, 0, 0, HALF_W, LAND_H);
+        if (i + 1 < pages.length) {
+          const rc = await renderPage({ ...baseParams, stationeryImg: null, isFirstPage: true, content: pages[i + 1], pageNum: i + 2 });
+          ctx.drawImage(rc, HALF_W, 0, HALF_W, LAND_H);
+        }
+        dataUrl = landCanvas.toDataURL('image/jpeg', 0.93);
+      }
+
+      doc.addImage(dataUrl, 'JPEG', 0, 0, 297, 210);
+    }
+
+    if (isCapacitor) {
+      const base64 = doc.output('datauristring').split(',')[1];
+      const saved = await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache, recursive: true });
+      await Share.share({ title: filename, url: saved.uri, dialogTitle: 'Salvar ou compartilhar PDF' });
+    } else {
+      doc.save(filename);
+    }
+    return;
+  }
+
+  // ── Sem stationery: portrait normal ──────────────────────────────────────────
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  for (let i = 0; i < pages.length; i++) {
+    if (i > 0) doc.addPage();
+    const dataUrl = await renderPageSafe({
+      stationeryImg: null,
+      isFirstPage:   i === 0,
+      title:         entry.title      || '',
+      mood:          entry.mood       || '',
+      createdAt:     entry.created_at || '',
+      content:       pages[i],
+      theme,
+      layout,
+      pageNum:       i + 1,
+      totalPages:    pages.length,
+    });
+    doc.addImage(dataUrl, 'JPEG', 0, 0, A4_W, A4_H);
+  }
 
   if (isCapacitor) {
     const base64 = doc.output('datauristring').split(',')[1];
