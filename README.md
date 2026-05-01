@@ -1,139 +1,195 @@
-# 📓 Bia Diário — Diário Inteligente
+# Bia Diário — Especificação SDD
 
-App de diário pessoal mobile-first com suporte a áudio, transcrição, tradução automática e temas visuais com IA.
+App de diário pessoal mobile-first com stationery, exportação PDF e transcrição de áudio por IA.
 
-## ✨ Funcionalidades
+---
 
-- 📱 **Mobile-first** — Interface otimizada para celular com FAB button
-- 📅 **Navegação por tempo** — Dia, mês e ano com swipe e calendário
-- 🎤 **Gravação de áudio** — Grave diretamente no navegador
-- 🧠 **Transcrição IA** — Whisper API para voz → texto
-- 🌍 **Tradução automática** — Detecta idioma e traduz
-- 😊 **Humor/emoção** — Emojis associados a cada registro
-- 🎨 **Temas dinâmicos** — 6 temas + geração com Google Gemini
-- 🔐 **Autenticação** — Supabase Auth com modo demo
-- 📝 **Design caderno** — Fonte manuscrita + linhas de caderno
+## Stack
 
-## 🚀 Setup Rápido
+| Camada | Tecnologia |
+|--------|-----------|
+| Frontend | React 19 + Vite 5 |
+| Mobile | Capacitor 8 (Android) |
+| Banco/Auth | Supabase |
+| Estilo | CSS puro (index.css) |
+| PDF | jsPDF + Canvas API |
+| Transcrição | Whisper / Groq / GPT-4o |
+| Deploy Web | Vercel |
 
-```bash
-# Instalar dependências
-npm install
+---
 
-# Copiar variáveis de ambiente
-cp .env.example .env
+## Funcionalidades
 
-# Rodar em dev
-npm run dev
+- Diário com data/hora no fuso `America/Sao_Paulo`
+- Gravação e transcrição de áudio (Whisper, Groq, GPT-4o)
+- Tradução automática de texto
+- Seletor de humor (emoji)
+- 6 temas visuais + geração com IA (Pollinations/SDXL)
+- **Stationery** — papel decorado com paginação e exportação PDF
+- Autenticação Supabase + modo demo (localStorage)
+
+---
+
+## Stationery — Regras de Paginação
+
+### App (editor)
+
+| Parâmetro | Valor |
+|-----------|-------|
+| `PAGES_SIZE` | 6 linhas por página |
+| `rows` textarea | 6 |
+| `line-height` | 32px |
+| `padding` | `217px 60px 180px 90px` |
+| `height` | `calc(217px + 6 * 32px + 180px)` = 589px |
+| `background-position` | `0 88px` (linhas alinhadas ao padding-top) |
+| `overflow` | `hidden` + `resize: none` |
+
+### Quebra de página — digitação
+
+1. `handleContentChange` verifica `lines.length > PAGES_SIZE` (quebras explícitas com `\n`)
+2. Se não estourar explicitamente, `requestAnimationFrame(() => checkVisualOverflow(...))` mede `scrollHeight > clientHeight` para detectar overflow de word-wrap
+3. `checkVisualOverflow` faz busca binária no textarea para achar o ponto exato de overflow, recua até limite de palavra (espaço/`\n`), move excedente para próxima página
+4. Página vazia em posição não-inicial → remove a página e volta para anterior
+
+### Quebra de página — transcrição de áudio
+
+Usa o mesmo algoritmo de busca binária **sincronamente**, iterando sobre o texto transcrito até distribuir tudo em páginas que caibam no textarea sem overflow. Não usa `setContent` direto.
+
+---
+
+## PDF Export (`src/lib/pdfExport.js`)
+
+### Modo stationery — landscape 2-up
+
+- Orientação: **landscape A4** (297mm × 210mm)
+- 2 páginas do app ficam lado a lado em cada folha PDF
+- Canvas por página: `PX_H × PX_W` = 2246px × 1588px, desenhado em metade do canvas landscape
+- `linesPerPage = 6` (igual ao `PAGES_SIZE` do app)
+- **Ambas as páginas** de cada spread mostram o cabeçalho (emoji + data)
+- `wrapLine` quebra palavras longas sem espaço caractere a caractere
+
+### Modo sem stationery — portrait
+
+- Orientação: portrait A4 (210mm × 297mm)
+- `linesPerPage` calculado dinamicamente: `floor(usableH / lineH)`
+
+### Layout de cada página stationery no canvas
+
+| Elemento | Posição |
+|----------|---------|
+| Header (emoji + título + data) | `hy = PX_H * 0.16` |
+| `TEXT_TOP` (início das linhas) | `PX_H * 0.24` |
+| `TEXT_BTM` (fim das linhas) | `PX_H * 0.91` |
+| `padLeft` | `90px * SCALE * 2` = 360px canvas |
+| `padRight` | `60px * SCALE * 2` = 240px canvas |
+| Fonte | 16px CSS × SCALE = 32px canvas ≈ 12pt PDF |
+
+---
+
+## Estrutura de Arquivos
+
+```
+src/
+├── components/
+│   ├── EntryForm.jsx         # Editor principal, paginação, stationery, PDF
+│   ├── DiaryHome.jsx         # Tela principal
+│   ├── AuthScreen.jsx        # Login/cadastro
+│   ├── MoodSelector.jsx      # Seletor de humor
+│   ├── AudioRecorderComponent.jsx
+│   ├── AudioPlayer.jsx
+│   └── ThemeSelector.jsx
+├── contexts/
+│   ├── AuthContext.jsx
+│   ├── DiaryContext.jsx
+│   └── ThemeContext.jsx
+├── lib/
+│   ├── pdfExport.js          # Exportação PDF (portrait + landscape 2-up)
+│   ├── supabase.js
+│   ├── store.js
+│   ├── dateUtils.js          # Fuso America/Sao_Paulo, pt-BR
+│   ├── audioRecorder.js
+│   ├── whisper.js
+│   ├── capacitor.js
+│   └── geminiThemes.js
+├── App.jsx
+├── main.jsx
+└── index.css                 # Todos os estilos, temas via CSS vars
+android/
+├── app/build.gradle          # Signing config (bia-diario-release.jks)
+├── bia-diario-release.jks    # Keystore release (NÃO commitar)
+└── ...
 ```
 
-## ⚙️ Configuração
+---
 
-### Supabase (Banco + Auth + Storage)
-
-1. Crie um projeto no [Supabase](https://supabase.com)
-2. Execute o SQL em `supabase-schema.sql` no SQL Editor
-3. Copie a URL e Anon Key para `.env`:
-
-```env
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbG...
-```
-
-### Whisper (Transcrição de Áudio)
-
-Para transcrição automática de áudio gravado:
-
-```env
-VITE_WHISPER_API_KEY=sk-xxx
-VITE_WHISPER_API_URL=https://api.openai.com/v1/audio/transcriptions
-```
-
-### Gemini (Temas com IA)
-
-Para geração de temas dinâmicos:
-
-```env
-VITE_GEMINI_API_KEY=AIza...
-```
-
-### Modo Demo
-
-Sem configurar nenhuma API, o app funciona em **modo demo** com localStorage.
-
-## 🗄️ Banco de Dados
+## Banco de Dados (Supabase)
 
 Tabela `entries`:
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
-| id | TEXT | ID único |
-| user_id | UUID | Referência ao usuário |
-| title | TEXT | Título (opcional) |
-| content | TEXT | Conteúdo do registro |
-| translated_content | TEXT | Tradução automática |
-| original_language | TEXT | Idioma detectado |
-| mood | TEXT | Emoji de humor |
+| id | TEXT | UUID |
+| user_id | UUID | Auth user |
+| title | TEXT | Título |
+| content | TEXT | Conteúdo (todas as páginas concatenadas com `\n`) |
+| translated_content | TEXT | Tradução |
+| mood | TEXT | Emoji |
 | audio_url | TEXT | URL do áudio |
-| created_at | TIMESTAMPTZ | Data/hora (UTC) |
+| stationery_url | TEXT | URL da stationery |
+| created_at | TIMESTAMPTZ | UTC |
 
-## 🎨 Temas Disponíveis
+---
 
-| Tema | Emoji | Descrição |
-|------|-------|-----------|
-| Caderno Clássico | 📓 | Estilo diário tradicional |
-| Rosa Suave | 🌸 | Tons pastel rosa |
-| Oceano Calmo | 🌊 | Azul água e verde |
-| Lavanda Noturna | 🌙 | Tons roxo e lilás |
-| Floresta Verde | 🌿 | Verde natureza |
-| Modo Escuro | 🌑 | Dark mode elegante |
-
-## 📁 Estrutura
-
-```
-src/
-├── components/
-│   ├── AuthScreen.jsx        # Login/cadastro
-│   ├── DiaryHome.jsx         # Tela principal
-│   ├── DateNavigator.jsx     # Navegação de data
-│   ├── EntryList.jsx         # Lista de registros
-│   ├── EntryForm.jsx         # Criar/editar registro
-│   ├── MoodSelector.jsx      # Seletor de humor
-│   ├── AudioRecorderComponent.jsx  # Gravação
-│   ├── AudioPlayer.jsx       # Reprodutor de áudio
-│   └── ThemeSelector.jsx     # Seletor de temas
-├── contexts/
-│   ├── AuthContext.jsx        # Estado de autenticação
-│   ├── DiaryContext.jsx       # Estado do diário
-│   └── ThemeContext.jsx       # Estado de tema
-├── lib/
-│   ├── supabase.js           # Cliente Supabase
-│   ├── store.js              # CRUD de dados
-│   ├── dateUtils.js          # Utilitários pt-BR
-│   ├── audioRecorder.js      # MediaRecorder API
-│   ├── whisper.js            # Transcrição IA
-│   └── geminiThemes.js       # Temas com Gemini
-├── App.jsx
-├── main.jsx
-└── index.css
-```
-
-## 🚢 Deploy (Vercel)
+## Android — Build e Deploy
 
 ```bash
+# 1. Build web
 npm run build
-# Faça deploy da pasta dist/
+
+# 2. Sync Capacitor
+npx cap sync android
+
+# 3. APK release
+cd android && ./gradlew assembleRelease
+# APK: android/app/build/outputs/apk/release/app-release.apk
 ```
 
-Ou conecte o repositório ao [Vercel](https://vercel.com) para deploy automático.
+**Keystore release:**
+- Arquivo: `android/bia-diario-release.jks`
+- Alias: `bia-diario`
+- Senha: `biaDiario2024`
+- **Não commitar** — obrigatório para atualizações na Play Store
 
-## 🇧🇷 Localização
+**Atenção:** Arquivos de recurso Android não podem ter espaços no nome. Se aparecer erro `' ' is not a valid file-based resource name`, remover arquivos `config N.xml` de `android/app/src/main/res/xml/`.
 
-- Fuso: `America/Sao_Paulo`
-- Formato: `pt-BR`
-- Banco salva em UTC, frontend converte
-- Hora em formato 24h (HH:mm)
+---
 
-## 📄 Licença
+## Web — Deploy
 
-MIT
+```bash
+npx vercel --prod
+# URL: https://diario-ashen.vercel.app
+```
+
+---
+
+## Variáveis de Ambiente
+
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_WHISPER_API_KEY=
+VITE_WHISPER_API_URL=
+VITE_GEMINI_API_KEY=
+```
+
+---
+
+## Regras para Agentes IA
+
+1. **Paginação é a fonte de verdade do app** — qualquer mudança em `PAGES_SIZE`, `padding`, `line-height` ou `height` do textarea stationery deve ser refletida no `pdfExport.js` e vice-versa.
+2. **Não usar `setContent` direto** em stationery — sempre passar por `handleContentChange` ou o algoritmo de split por busca binária.
+3. **`checkVisualOverflow` não usa hifenização** — apenas quebra em limites de palavra.
+4. **PDF stationery é sempre landscape 2-up** — nunca portrait para entradas com stationery.
+5. **O keystore `bia-diario-release.jks` nunca vai para o git.**
+6. **Arquivos XML Android não podem ter espaços no nome.**
