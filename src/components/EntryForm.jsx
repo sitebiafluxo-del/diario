@@ -7,8 +7,10 @@ import AudioRecorderComponent from './AudioRecorderComponent';
 import AudioPlayer from './AudioPlayer';
 import { X, Save, Trash2, Languages, Loader2, Sparkles, Zap, Image as ImageIcon, ChevronLeft, ChevronRight, Download, Upload, CheckCircle, RefreshCw } from 'lucide-react';
 import { exportEntryToPDF } from '../lib/pdfExport';
+import { formatTranscription } from '../lib/textFormatter';
 import { apiUrl, isCapacitor } from '../lib/capacitor';
 import { CapacitorHttp } from '@capacitor/core';
+import { flushSync } from 'react-dom';
 
 // Encontra o melhor ponto de quebra de sílaba em pt-BR dentro de 'word',
 // buscando de maxPos para trás. Retorna o índice onde inserir o hífen, ou -1.
@@ -109,6 +111,8 @@ export default function EntryForm({ entry, onClose }) {
   const currentContent = pages[currentPage] || '';
 
   const handleContentChange = (newText) => {
+    if (measuringRef.current) return; // ignora eventos disparados pelo binary search
+
     // Página vazia em página não-inicial → remove e volta para anterior
     if (!newText.trim() && currentPage > 0) {
       const newPages = [...pages];
@@ -147,33 +151,81 @@ export default function EntryForm({ entry, onClose }) {
         navigatingRef.current = true;
         setCurrentPage(p => p - 1);
       } else {
-        setContent(newPages.join('\n'));
-        requestAnimationFrame(() => checkVisualOverflow(newPages, newText));
+        // flushSync garante que o DOM é atualizado antes de medir o overflow
+        flushSync(() => setContent(newPages.join('\n')));
+        checkVisualOverflow(newPages, newText);
       }
     }
+  };
+
+  // Mede scrollHeight com overflow:scroll para funcionar corretamente no Android
+  // (com overflow:hidden o WebView pode retornar scrollHeight === clientHeight)
+  const measureHeight = (ta, text) => {
+    const prev = ta.style.overflow;
+    ta.style.overflow = 'scroll';
+    ta.value = text;
+    const h = ta.scrollHeight;
+    ta.style.overflow = prev;
+    return h;
   };
 
   const checkVisualOverflow = (currentPages, text) => {
     if (!textareaRef.current) return;
     const ta = textareaRef.current;
-    if (ta.scrollHeight <= ta.clientHeight + 2) return;
+    const maxH = ta.clientHeight + 2;
+    if (measureHeight(ta, text) <= maxH) return;
 
+    // Protege o binary search de disparar onChange recursivamente
+    measuringRef.current = true;
     const saved = ta.value;
     let lo = 0, hi = text.length;
     while (lo < hi - 1) {
       const mid = Math.ceil((lo + hi) / 2);
-      ta.value = text.slice(0, mid);
-      if (ta.scrollHeight <= ta.clientHeight + 2) lo = mid;
+      if (measureHeight(ta, text.slice(0, mid)) <= maxH) lo = mid;
       else hi = mid - 1;
     }
     ta.value = saved;
+    measuringRef.current = false;
 
-    // Recua até o limite de palavra (espaço ou newline) para não cortar no meio
+    // Determina ponto de corte com hifenização pt-BR
     let splitAt = lo;
-    while (splitAt > 0 && text[splitAt] !== '\n' && text[splitAt] !== ' ') splitAt--;
-    if (splitAt === 0) splitAt = lo; // palavra única enorme: corta no caractere
+    let hyphen = '';
 
-    const thisPageText = text.slice(0, splitAt).trimEnd();
+    if (lo > 0 && text[lo] !== '\n' && text[lo] !== ' ') {
+      // Estamos no meio de uma palavra — encontra o início dela
+      let wordStart = lo;
+      while (wordStart > 0 && text[wordStart - 1] !== ' ' && text[wordStart - 1] !== '\n') {
+        wordStart--;
+      }
+      const charsIntoWord = lo - wordStart;
+
+      if (charsIntoWord >= 3) {
+        // Extrai a palavra completa e tenta quebra silábica
+        let wordEnd = lo;
+        while (wordEnd < text.length && text[wordEnd] !== ' ' && text[wordEnd] !== '\n') wordEnd++;
+        const word = text.slice(wordStart, wordEnd);
+        const breakPos = findPtBrBreak(word, charsIntoWord);
+        if (breakPos > 0) {
+          splitAt = wordStart + breakPos;
+          hyphen = '-';
+        } else if (wordStart > 0) {
+          // Sem break silábico: move a palavra inteira para a próxima página
+          splitAt = wordStart;
+        } else {
+          // Palavra começa no início do texto e é longa demais: corta com hífen forçado
+          splitAt = Math.max(lo - 1, 1);
+          hyphen = '-';
+        }
+      } else if (wordStart > 0) {
+        // Palavra muito curta: move inteira
+        splitAt = wordStart;
+      } else {
+        splitAt = Math.max(lo - 1, 1);
+        hyphen = '-';
+      }
+    }
+
+    const thisPageText = text.slice(0, splitAt).trimEnd() + hyphen;
     const overflowText = text.slice(splitAt).trimStart();
     if (!overflowText) return;
 
@@ -190,6 +242,7 @@ export default function EntryForm({ entry, onClose }) {
 
   const formRef = useRef(null);
   const navigatingRef = useRef(false);
+  const measuringRef = useRef(false); // bloqueia onChange durante binary search
 
   // Foca o textarea e posiciona o cursor no início quando muda de página
   const textareaRef = useRef(null);
@@ -237,21 +290,23 @@ export default function EntryForm({ entry, onClose }) {
       
       if (result && result.text) {
         console.log('Texto transcrito com sucesso:', result.text);
+        const formattedText = formatTranscription(result.text);
 
         if (stationery && textareaRef.current) {
           // Divide o texto transcrito em páginas medindo overflow real no textarea
           const ta = textareaRef.current;
           const currentPageContent = pages[currentPage] || '';
-          const sep = currentPageContent.trim() ? ' ' : '';
-          const fullText = currentPageContent + sep + result.text;
+          const sep = currentPageContent.trim() ? '\n' : '';
+          const fullText = currentPageContent + sep + formattedText;
 
           const savedValue = ta.value;
+          const maxH = ta.clientHeight + 2;
           const newPageContents = [];
           let remaining = fullText;
 
+          measuringRef.current = true;
           while (remaining.length > 0) {
-            ta.value = remaining;
-            if (ta.scrollHeight <= ta.clientHeight + 2) {
+            if (measureHeight(ta, remaining) <= maxH) {
               newPageContents.push(remaining);
               break;
             }
@@ -259,19 +314,30 @@ export default function EntryForm({ entry, onClose }) {
             let lo = 0, hi = remaining.length;
             while (lo < hi - 1) {
               const mid = Math.ceil((lo + hi) / 2);
-              ta.value = remaining.slice(0, mid);
-              if (ta.scrollHeight <= ta.clientHeight + 2) lo = mid;
+              if (measureHeight(ta, remaining.slice(0, mid)) <= maxH) lo = mid;
               else hi = mid - 1;
             }
-            // Recua até limite de palavra
+            // Recua até limite de palavra com hifenização pt-BR
             let splitAt = lo;
-            while (splitAt > 0 && remaining[splitAt] !== '\n' && remaining[splitAt] !== ' ') splitAt--;
-            if (splitAt === 0) splitAt = lo;
-
-            newPageContents.push(remaining.slice(0, splitAt).trimEnd());
+            let hyphen = '';
+            if (lo > 0 && remaining[lo] !== '\n' && remaining[lo] !== ' ') {
+              let wordStart = lo;
+              while (wordStart > 0 && remaining[wordStart - 1] !== ' ' && remaining[wordStart - 1] !== '\n') wordStart--;
+              const charsIntoWord = lo - wordStart;
+              if (charsIntoWord >= 3) {
+                let wordEnd = lo;
+                while (wordEnd < remaining.length && remaining[wordEnd] !== ' ' && remaining[wordEnd] !== '\n') wordEnd++;
+                const breakPos = findPtBrBreak(remaining.slice(wordStart, wordEnd), charsIntoWord);
+                if (breakPos > 0) { splitAt = wordStart + breakPos; hyphen = '-'; }
+                else splitAt = wordStart > 0 ? wordStart : lo;
+              } else {
+                splitAt = wordStart > 0 ? wordStart : lo;
+              }
+            }
+            newPageContents.push(remaining.slice(0, splitAt).trimEnd() + hyphen);
             remaining = remaining.slice(splitAt).trimStart();
           }
-
+          measuringRef.current = false;
           ta.value = savedValue;
 
           const newPages = [...pages];
@@ -280,8 +346,8 @@ export default function EntryForm({ entry, onClose }) {
           setCurrentPage(currentPage + newPageContents.length - 1);
         } else {
           setContent((prev) => {
-            const separator = prev.trim() ? '\n\n' : '';
-            return prev + separator + result.text;
+            const separator = prev.trim() ? '\n' : '';
+            return prev + separator + formattedText;
           });
         }
 
@@ -442,16 +508,16 @@ export default function EntryForm({ entry, onClose }) {
         let prompt;
         
         if (genEngine === 'flux') {
-          // PROMPT EXCLUSIVO FLUX: Respeitar bordas, centro branco, linhas suaves e cores pastéis
-          prompt = `A decorative frame layout featuring ${translatedTheme}. Layer a MASSIVE, blindingly bright, pure solid white radial fade ON TOP OF the final image, completely erasing the center 80%. The subject must be pushed entirely to the extreme outer edges and kept VERY SMALL (only the bottom 10% of the image). The center is pure empty white copy space for absolute maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS. 2D soft digital illustration, 9:16 portrait.`;
+          prompt = `Papel de carta retrato (proporção 3:4), design de fundo completo ocupando toda a largura e altura da página sem deixar bordas vazias ou espaços em branco nas laterais. Tema: ${translatedTheme}, fortemente representado através de elementos visuais, cores, texturas e símbolos em toda a extensão horizontal da imagem. Ilustração digital 2D suave, estilo minimalista e elegante, composição plena e equilibrada que preenche todo o espaço da página.\n\nDecorações e elementos do tema devem se estender da borda esquerda até a borda direita, cobrindo toda a largura. Área central suave e clara para escrita. Nenhuma borda lateral vazia.\n\nRestrições obrigatórias: sem pessoas, sem rostos, sem personagens, sem figuras humanas, sem silhuetas humanas, sem olhos, sem partes do corpo. Apenas elementos gráficos, naturais ou abstratos relacionados ao tema.\n\nPaleta de cores harmoniosa alinhada ao tema ${translatedTheme}. Iluminação suave, sem contraste extremo. Alta qualidade, acabamento limpo, sem texto, sem marcas d'água.`;
         } else {
           // SDXL — descreve a composição que queremos, não pós-processamento
           prompt = `Decorative stationery paper border frame, ${translatedTheme} watercolor illustrations only on the outer edges, ornate top border decoration, ornate bottom border decoration, thin left margin decoration, thin right margin decoration, large completely empty pure white center writing area occupying 70 percent of the page, clean white paper background in center, pastel soft colors, portrait 9:16, no text, no watermark, no people, no faces`;
         }
 
-        const negativePrompt = 'full scene coverage, subject in center, busy center, dark background, cluttered middle, text, watermark, people, faces, characters, animals in center';
+        const negativePrompt = 'narrow design, compressed, squished, thin borders, empty sides, cropped edges, text, watermark, people, faces, characters, animals in center';
         const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
-        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=576&height=1024&nologo=true&model=${modelParam}&seed=${Date.now()}&negative_prompt=${encodeURIComponent(negativePrompt)}`;
+        const [genW, genH] = genEngine === 'flux' ? [768, 1024] : [576, 1024];
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${genW}&height=${genH}&nologo=true&model=${modelParam}&seed=${Date.now()}&negative_prompt=${encodeURIComponent(negativePrompt)}`;
         
         const rawBlob = await fetchBlob(url);
         setGenRawBlob(rawBlob);
