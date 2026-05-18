@@ -509,58 +509,22 @@ export default function EntryForm({ entry, onClose }) {
         
         if (genEngine === 'flux') {
           prompt = `Decorative stationery paper border frame, ${translatedTheme} watercolor illustrations only on the outer edges, ornate top border decoration, ornate bottom border decoration, thin left margin decoration, thin right margin decoration, large completely empty pure white center writing area occupying 70 percent of the page, clean white paper background in center, pastel soft colors, portrait 9:16, no text, no watermark, no people, no faces, no human faces, no eyes, no mouth, no nose, no head, no body parts, no characters, no portraits, absolutely no human features`;
+        } else if (genEngine === 'turbo') {
+          prompt = `Elegant stationery paper background, ${translatedTheme} theme, soft watercolor border decorations, large white writing area in center, pastel colors, portrait orientation, no text, no people, no faces`;
         } else {
           // SDXL
           prompt = `Portrait stationery paper (3:4 ratio), full background design covering the entire width and height of the page with no empty side borders. Theme: ${translatedTheme}, strongly represented through visual elements, colors, textures and symbols spanning the full horizontal width of the image. Soft 2D digital illustration, minimalist and elegant style, balanced full-page composition.\n\nDecorative elements must extend from the left edge to the right edge covering the full width. Soft and light central area for writing. No empty side borders.\n\nSTRICTLY FORBIDDEN: human faces, face, facial expression, human eyes, human mouth, human nose, human head, people, human figures, human silhouettes, human body, body parts, characters, children, adults, babies, portraits, busts. Only graphic, natural, floral, geometric or abstract elements related to the theme.\n\nHarmonious color palette aligned with the theme ${translatedTheme}. Soft lighting, no extreme contrast. High quality, clean finish, no text, no watermarks.`;
         }
 
         const negativePrompt = 'narrow design, compressed, squished, thin borders, empty sides, cropped edges, text, watermark, (human face:2), (face:2), (eyes:2), (mouth:2), (nose:2), (head:2), (portrait:2), (person:2), (people:2), (human:2), (body:2), (character:2), (figure:2), (silhouette:2), (child:2), (adult:2), (baby:2), (man:2), (woman:2), (girl:2), (boy:2), realistic face, close-up face, facial features, skin, hair on face, eyebrows, lips';
-        const modelParam = genEngine === 'sdxl' ? 'sdxl' : 'flux';
+        const modelParam = genEngine === 'sdxl' ? 'sdxl' : genEngine === 'turbo' ? 'turbo' : 'flux';
         const [genW, genH] = genEngine === 'flux' ? [768, 1024] : [576, 1024];
         const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${genW}&height=${genH}&nologo=true&model=${modelParam}&seed=${Date.now()}&negative_prompt=${encodeURIComponent(negativePrompt)}`;
-        
+
         const rawBlob = await fetchBlob(url);
         setGenRawBlob(rawBlob);
         const fadedBlob = await applyWhiteFade(rawBlob, fadeScale, fadeOpacity);
         setGenPreviewUrl(URL.createObjectURL(fadedBlob));
-      } else {
-        // DALL-E 3
-        const prompt = `Digital art of ${translatedTheme}. Aspect ratio 9:16. Layer a HUGE, intensely bright solid white radial fade ON TOP OF the final image, completely erasing the middle 80%. The elements of ${translatedTheme} must ONLY appear at the extreme outer edges and must be VERY SMALL (bottom 10%). The center must be perfectly pure white and completely empty for maximum text contrast. STRICTLY NO PEOPLE, NO FACES, NO CHARACTERS.`;
-        let imageUrl = null;
-
-        try {
-          const proxyRes = await fetch(apiUrl('/api/generate-stationery'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt }),
-          });
-          if (proxyRes.ok) {
-            const data = await proxyRes.json();
-            imageUrl = data.url;
-          }
-        } catch (_) {}
-
-        if (!imageUrl) {
-          const apiKey = import.meta.env.VITE_WHISPER_API_KEY;
-          if (!apiKey) {
-            alert('Não foi possível gerar o papel. Verifique os créditos da conta OpenAI em platform.openai.com/billing');
-            return;
-          }
-          const res = await fetch('https://api.openai.com/v1/images/generations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1792' }),
-          });
-          if (!res.ok) throw new Error(`DALL-E error: ${res.status}`);
-          const data = await res.json();
-          imageUrl = data.data?.[0]?.url;
-        }
-
-        if (!imageUrl) throw new Error('Sem URL na resposta');
-        const dalleRaw = await fetchBlob(imageUrl);
-        setGenRawBlob(dalleRaw);
-        const dalleFaded = await applyWhiteFade(dalleRaw, fadeScale, fadeOpacity);
-        setGenPreviewUrl(URL.createObjectURL(dalleFaded));
       }
     } catch (error) {
       console.error('Falha ao gerar papel:', error);
@@ -576,7 +540,7 @@ export default function EntryForm({ entry, onClose }) {
     try {
       const imgRes = await fetch(genPreviewUrl);
       const blob = await imgRes.blob();
-      const ext = genModalType === 'free' ? 'jpg' : 'png';
+      const ext = 'jpg';
       const file = new File([blob], `stationery-${Date.now()}.${ext}`, { type: blob.type });
       const savedUrl = await saveStationery(file);
       if (savedUrl) {
@@ -691,8 +655,8 @@ export default function EntryForm({ entry, onClose }) {
             </div>
             <div
               className="stationery-option ai sparkles"
-              onClick={() => openGenModal('ai')}
-              title="Gerar Papel com DALL-E 3 (OpenAI)"
+              onClick={() => { setGenEngine('turbo'); openGenModal('free'); }}
+              title="Gerar Papel Turbo (Rápido)"
             >
               <Sparkles size={18} />
             </div>
@@ -904,6 +868,13 @@ export default function EntryForm({ entry, onClose }) {
                     onClick={() => setGenEngine('flux')}
                   >
                     Flux (Qualidade)
+                  </button>
+                  <button
+                    type="button"
+                    className={`engine-btn ${genEngine === 'turbo' ? 'active' : ''}`}
+                    onClick={() => setGenEngine('turbo')}
+                  >
+                    Turbo (Rápido)
                   </button>
                   <button
                     type="button"
