@@ -23,7 +23,7 @@ jobs:
           echo "HTTP: $HTTP_CODE"
           echo "Resposta: $BODY"
 
-          if [ "$HTTP_CODE" != "200" ]; then
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
             echo "Falha ao contatar o Supabase!"
             exit 1
           fi
