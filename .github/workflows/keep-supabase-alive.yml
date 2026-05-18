@@ -1,0 +1,31 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # Todo dia ao meio-dia UTC (09:00 BRT)
+  workflow_dispatch:       # Permite rodar manualmente pelo GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          RESPONSE=$(curl -s -w "\nHTTP:%{http_code}" \
+            -X POST "https://api.supabase.com/v1/projects/${{ secrets.SUPABASE_PROJECT_REF }}/database/query" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "SELECT 1 AS alive;"}')
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1 | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          echo "HTTP: $HTTP_CODE"
+          echo "Resposta: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Falha ao contatar o Supabase!"
+            exit 1
+          fi
+
+          echo "Supabase está ativo!"
