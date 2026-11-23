@@ -160,7 +160,8 @@ DECLARE c INT; lim INT;
 BEGIN
   IF auth.uid() IS NULL THEN RETURN false; END IF;
   lim := CASE p_route
-           WHEN 'analyze-image' THEN 30
+           WHEN 'analyze-image'  THEN 30
+           WHEN 'generate-paper' THEN 10
            ELSE NULL
          END;
   IF lim IS NULL THEN RETURN false; END IF;
@@ -176,11 +177,18 @@ BEGIN
 END $$;
 
 -- Remove linhas de rotas inválidas que possam ter sido criadas antes desta versão
-DELETE FROM public.api_usage WHERE route <> 'analyze-image';
+DELETE FROM public.api_usage WHERE route NOT IN ('analyze-image', 'generate-paper');
 
 REVOKE ALL ON FUNCTION public.bump_usage(TEXT, INT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.bump_usage(TEXT, INT) TO authenticated;
 REVOKE ALL ON FUNCTION public.papers_quota() FROM PUBLIC, anon, authenticated;
+
+-- ─── 6. Cache de papéis gerados (reaproveitamento entre usuários) ───────────
+-- Bucket PRIVADO e SEM policies: só o servidor (service role) lê e grava.
+-- Usuários nunca acessam direto, então ninguém consegue "envenenar" o cache.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('paper-cache', 'paper-cache', false, 3145728, ARRAY['image/jpeg'])
+ON CONFLICT (id) DO UPDATE SET public = false;
 
 -- ─── Conferência ────────────────────────────────────────────────────────────
 -- Policies ativas (confira se não sobrou nenhuma "Anyone can ..." criada pela UI):

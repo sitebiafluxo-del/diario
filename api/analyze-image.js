@@ -6,8 +6,17 @@
  */
 import { requireUser, rateLimit, consumeDailyQuota, fail, noStore } from './_lib/auth.js';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Modelos em ordem de preferência (baratos e rápidos). Se um não existir mais (404)
+// ou estiver sobrecarregado (429/503), tenta o próximo em vez de travar o app.
+const MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
+  'gemini-2.5-flash-lite',
+].filter(Boolean);
+const geminiUrl = (model) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+const RETRYABLE = new Set([404, 429, 500, 503]);
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 // O limite real fica no banco (função bump_usage); este valor é só informativo
 const DAILY_LIMIT = 30;
@@ -50,23 +59,29 @@ export default async function handler(req, res) {
   if (!(await consumeDailyQuota(res, token, 'analyze-image', DAILY_LIMIT))) return;
 
   try {
-    const response = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Chave no header (não na URL) para não aparecer em logs de proxies
-        'x-goog-api-key': apiKey,
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: PROMPT }, { inlineData: { mimeType, data: image } }] }],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 1024,
+        responseMimeType: 'application/json',
       },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: PROMPT }, { inlineData: { mimeType, data: image } }] }],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 400,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
     });
+
+    let response;
+    for (const model of MODELS) {
+      response = await fetch(geminiUrl(model), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Chave no header (não na URL) para não aparecer em logs de proxies
+          'x-goog-api-key': apiKey,
+        },
+        body,
+      });
+      if (response.ok || !RETRYABLE.has(response.status)) break;
+      console.warn(`Gemini ${model} indisponível (${response.status}), tentando o próximo modelo`);
+    }
 
     if (!response.ok) {
       return fail(res, 502, 'Falha ao analisar a imagem.', `Gemini ${response.status}: ${await response.text()}`);

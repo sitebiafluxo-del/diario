@@ -3,6 +3,7 @@ import { isCapacitor } from './capacitor';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { isSafeImageUrl } from './safeUrl';
+import { getWritingLayout } from './writingLines';
 
 // Dimensões A4 Paisagem para impressão em alta definição (300 DPI aprox.)
 // Folha A4 Paisagem: 297mm × 210mm
@@ -56,7 +57,7 @@ function wrapText(ctx, text, maxWidth) {
  * Renderiza uma página individual A5 em um canvas preservando
  * a proporção original da imagem (SEM DISTORÇÃO).
  */
-async function renderA5LetterCanvas({ paperImg, text, title }) {
+async function renderA5LetterCanvas({ paperImg, text, title, position }) {
   await document.fonts.ready;
 
   const canvas = document.createElement('canvas');
@@ -93,12 +94,14 @@ async function renderA5LetterCanvas({ paperImg, text, title }) {
   }
 
   // 2. Margens e dimensões de escrita
-  const padLeft = Math.round(HALF_W * 0.12);
-  const padRight = Math.round(HALF_W * 0.12);
+  // Mesmo layout das linhas desenhadas no papel (writingLines.js)
+  const WRITING_LAYOUT = getWritingLayout(position);
+  const padLeft = Math.round(HALF_W * WRITING_LAYOUT.marginX);
+  const padRight = Math.round(HALF_W * WRITING_LAYOUT.marginX);
   const textWidth = HALF_W - padLeft - padRight;
-  const startY = Math.round(LAND_H * 0.22);
-  const endY = Math.round(LAND_H * 0.88);
-  const lineSpacing = 42;
+  const startY = Math.round(LAND_H * WRITING_LAYOUT.startY);
+  const endY = Math.round(LAND_H * WRITING_LAYOUT.endY);
+  const lineSpacing = LAND_H * WRITING_LAYOUT.lineGap;
 
   // 3. Título opcional
   let currentY = startY;
@@ -161,7 +164,7 @@ export async function exportLetterToA4PDF({ paper, customText }) {
   ctx.fillRect(0, 0, LAND_W, LAND_H);
 
   // Renderiza a carta A5 individual com proporção 100% perfeita
-  const letterCanvas = await renderA5LetterCanvas({ paperImg, text: textToPrint, title });
+  const letterCanvas = await renderA5LetterCanvas({ paperImg, text: textToPrint, title, position: paper?.options?.position });
 
   // ── Margens de segurança da impressora com ESCALA UNIFORME ────────────────
   // Aplicamos exatamente a mesma escala na largura e na altura (0.94 = ~6.5mm de margem)

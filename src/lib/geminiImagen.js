@@ -1,9 +1,14 @@
 /**
- * Gemini Imagen & Vision Integration for Stationery Generation
- * Suporte a Imagen 3 (Google GenAI) + Gemini 2.5/1.5 Flash (Visão Multimodal)
- * com fallback inteligente para garantir que a geração nunca falhe.
+ * Geração de papéis de carta (Pollinations, no aparelho do usuário — gratuito)
+ * + análise da foto de inspiração:
+ *   1. SEMPRE no próprio aparelho (cores dominantes): grátis, instantâneo, sem limite
+ *   2. Gemini (servidor, plano gratuito) como extra opcional para nomear o tema;
+ *      se a cota grátis acabar ou demorar, o app segue só com o resultado local.
  */
 import { authFetch } from './apiClient';
+import { MONO_PALETTES, buildStationeryPrompt } from './stationeryPrompt';
+
+export { MONO_PALETTES, buildStationeryPrompt };
 
 export const POSITION_OPTIONS = [
   { id: 'frame', label: 'Moldura', desc: 'Cantos diagonais (estilo clássico)', icon: 'frame' },
@@ -18,14 +23,7 @@ export const COLOR_MODES = [
   { id: 'mono', label: 'Uma cor só', emoji: '🎨', desc: 'Monocromático no tom escolhido' },
 ];
 
-export const MONO_PALETTES = [
-  { id: 'rosa', label: 'Rosa', hex: '#e8789e', desc: 'Tons suaves de rosa e blush' },
-  { id: 'azul', label: 'Azul', hex: '#64b5f6', desc: 'Tons de azul celeste e mar' },
-  { id: 'lilas', label: 'Lavanda', hex: '#ba68c8', desc: 'Tons de lilás e lavanda suave' },
-  { id: 'verde', label: 'Sálvia', hex: '#81c784', desc: 'Tons de verde botânico e oliva' },
-  { id: 'dourado', label: 'Dourado/Terra', hex: '#d4a373', desc: 'Tons de bege, sépia e terra cota' },
-  { id: 'cinza', label: 'Grafite', hex: '#757575', desc: 'Tons neutros de grafite e cinza suave' },
-];
+
 
 export const LINE_OPTIONS = [
   { id: 'dotted', label: 'Pontilhadas', desc: 'Linhas pontilhadas delicadas (recomendado)', icon: 'dotted' },
@@ -36,143 +34,154 @@ export const LINE_OPTIONS = [
 // Remove chave do Gemini que versões antigas permitiam salvar no navegador
 try { localStorage.removeItem('user_gemini_api_key'); } catch { /* ignore */ }
 
+function loadImageFromFile(file) {
+  const url = URL.createObjectURL(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ img, release: () => URL.revokeObjectURL(url) });
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Imagem inválida')); };
+    img.src = url;
+  });
+}
+
 /**
  * Reduz a foto para no máx. 1024px e reencoda em JPEG.
  * Além de economizar banda, REMOVE metadados EXIF (GPS, modelo do celular, data)
  * antes de a foto sair do aparelho.
  */
-async function downscaleToJpegBase64(file, maxSide = 1024) {
-  const bitmapUrl = URL.createObjectURL(file);
-  try {
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = () => reject(new Error('Imagem inválida'));
-      i.src = bitmapUrl;
-    });
-    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    return { base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
-  } finally {
-    URL.revokeObjectURL(bitmapUrl);
-  }
+function toJpegBase64(img, maxSide = 1024) {
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  return { base64: dataUrl.split(',')[1], mimeType: 'image/jpeg' };
+}
+
+// Famílias de cor: faixa de matiz (graus) → nome em português e inglês
+const HUE_FAMILIES = [
+  { max: 15, pt: 'vermelho', en: 'soft red' },
+  { max: 40, pt: 'laranja', en: 'peach and soft orange' },
+  { max: 65, pt: 'amarelo', en: 'buttery yellow' },
+  { max: 160, pt: 'verde', en: 'sage and leafy green' },
+  { max: 200, pt: 'turquesa', en: 'aqua and turquoise' },
+  { max: 255, pt: 'azul', en: 'soft sky blue' },
+  { max: 290, pt: 'lilás', en: 'lavender and lilac' },
+  { max: 352, pt: 'rosa', en: 'blush pink and rose' },
+  { max: 360, pt: 'vermelho', en: 'soft red' },
+];
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0));
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return [h * 60, s, l];
 }
 
 /**
- * Traduz termos comuns de português para inglês para máxima qualidade nos modelos de IA
+ * Análise LOCAL da foto (roda no aparelho, sem rede, sem custo, sem limite):
+ * identifica as 2–3 famílias de cor dominantes.
  */
-function translateThemeTerms(text) {
-  if (!text) return 'vintage roses and delicate wildflowers';
-  const t = text.toLowerCase().trim();
+export function analyzePaletteLocally(img) {
+  const SIZE = 48;
+  const canvas = document.createElement('canvas');
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, SIZE, SIZE);
+  const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
 
-  const dict = {
-    'rosas vintage': 'vintage soft roses, antique garden flowers',
-    'rosa vintage': 'vintage soft roses, antique garden flowers',
-    'rosas': 'delicate watercolor roses, botanical floral leaves',
-    'rosa': 'delicate pink watercolor roses',
-    'borboletas delicadas': 'delicate flying butterflies, floral watercolor accents',
-    'borboletas': 'delicate butterflies with pastel watercolor wings',
-    'borboleta': 'delicate watercolor butterfly',
-    'jardim botânico': 'botanical garden, lush wild leaves and blooming flowers',
-    'jardim botanico': 'botanical garden, lush wild leaves and blooming flowers',
-    'flores silvestres': 'wildflowers, lavender and meadow botanical blooms',
-    'flores': 'delicate pastel flowers, floral blossoms',
-    'flor': 'delicate pastel flowers',
-    'gatinhos fofos': 'adorable sweet kitten, cute cat illustration',
-    'gatinhos': 'cute little kittens with floral wreaths',
-    'gato': 'cute watercolor kitten',
-    'céu estrelado': 'gentle starry night sky, crescent moon and soft stars',
-    'ceu estrelado': 'gentle starry night sky, crescent moon and soft stars',
-    'café e livros': 'vintage cozy coffee cup, books and flowers',
-    'cafe e livros': 'vintage cozy coffee cup, books and flowers',
-    'conchas do mar': 'delicate sea shells, starfish, ocean pearls, coastal watercolor',
-    'moranguinhos': 'cute sweet red strawberries and little blossoms',
-    'morango': 'sweet strawberries and blossoms',
-    'passarinhos': 'little singing birds, botanical twigs',
-    'passarinho': 'little cute bird on floral branch',
-    'lavanda': 'purple lavender blossoms and herbal greenery',
-    'girassol': 'bright watercolor sunflowers and greenery',
-    'girassois': 'bright watercolor sunflowers and greenery',
-    'corações': 'delicate romantic little hearts, pastel ribbons',
-    'coracoes': 'delicate romantic little hearts, pastel ribbons'
+  const weights = new Map();
+  let neutral = 0, colored = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const [h, sat, l] = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+    if (l > 0.92 || l < 0.08 || sat < 0.18) { neutral++; continue; } // fundo branco/preto/cinza
+    colored++;
+    let fam = HUE_FAMILIES.find((f) => h <= f.max);
+    // Laranja/amarelo claros e pouco saturados são bege/areia, não laranja
+    if (h > 15 && h <= 65 && l > 0.7 && sat < 0.7) fam = { pt: 'bege', en: 'warm beige and sand' };
+    const key = fam.pt;
+    const prev = weights.get(key) || { ...fam, w: 0 };
+    prev.w += sat; // cores mais vivas pesam mais
+    weights.set(key, prev);
+  }
+
+  const top = [...weights.values()].sort((a, b) => b.w - a.w)
+    .filter((f, idx, arr) => idx === 0 || f.w >= arr[0].w * 0.12)
+    .slice(0, 3);
+
+  if (top.length === 0 || colored < neutral * 0.05) {
+    return {
+      themeDescription: 'elegant neutral watercolor botanical elements in soft beige and warm gray',
+      suggestedColors: 'soft beige, warm gray and cream',
+      portugueseSummary: 'Tons neutros da sua foto',
+    };
+  }
+
+  const ptNames = top.map((f) => f.pt);
+  const ptList = ptNames.length > 1 ? `${ptNames.slice(0, -1).join(', ')} e ${ptNames.at(-1)}` : ptNames[0];
+  const enList = top.map((f) => f.en).join(', ');
+  return {
+    themeDescription: `delicate watercolor flowers and leaves in ${enList} tones`,
+    suggestedColors: enList,
+    portugueseSummary: `Tons de ${ptList} da sua foto`,
   };
-
-  // Passada ÚNICA sobre o texto original, termos mais longos primeiro e com
-  // limites de palavra Unicode. Antes, cada substituição rodava sobre o texto já
-  // traduzido e 'flor' casava dentro de 'floral' ("flowersal").
-  const terms = Object.keys(dict).sort((a, b) => b.length - a.length);
-  const escaped = terms.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const re = new RegExp(`(?<!\\p{L})(${escaped.join('|')})(?!\\p{L})`, 'gu');
-  return t.replace(re, (m) => dict[m]);
 }
+
+const ONLINE_ANALYSIS_TIMEOUT_MS = 8000;
+
 
 /**
  * Analisa uma imagem enviada pelo usuário usando Gemini Multimodal Vision
  */
 export async function analyzeImageForStationery(file) {
+  const { img, release } = await loadImageFromFile(file);
   try {
-    const { base64, mimeType } = await downscaleToJpegBase64(file);
-    // Chamada via servidor: a chave do Gemini nunca chega ao navegador
-    const info = await authFetch('/api/analyze-image', { body: { image: base64, mimeType } });
-    if (info?.portugueseSummary) return info;
-  } catch (err) {
-    console.warn('Análise de imagem indisponível:', err.message);
-  }
+    // 1. Sempre funciona: análise local de cores (grátis e sem limite)
+    const local = analyzePaletteLocally(img);
 
-  return {
-    themeDescription: 'delicate watercolor illustration inspired by the uploaded visual elements',
-    suggestedColors: 'soft pastel watercolor',
-    portugueseSummary: 'Tema inspirado na foto'
-  };
+    // 2. Extra opcional: Gemini (plano gratuito) para dar nome ao tema.
+    //    Se não estiver logado, a cota grátis acabar ou demorar, segue com o local.
+    try {
+      const { base64, mimeType } = toJpegBase64(img);
+      const online = await Promise.race([
+        authFetch('/api/analyze-image', { body: { image: base64, mimeType } }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ONLINE_ANALYSIS_TIMEOUT_MS)),
+      ]);
+      if (online?.portugueseSummary) {
+        return {
+          themeDescription: online.themeDescription,
+          // as cores medidas no aparelho são exatas; usa as duas fontes
+          suggestedColors: `${local.suggestedColors}, ${online.suggestedColors}`,
+          portugueseSummary: online.portugueseSummary,
+        };
+      }
+    } catch (err) {
+      console.info('Análise online indisponível, usando análise local:', err.message);
+    }
+    return local;
+  } finally {
+    release();
+  }
 }
 
 /**
  * Constrói o prompt detalhado para gerar o papel de carta
  */
-export function buildStationeryPrompt({ theme, position = 'frame', colorMode = 'color', monoColor = 'rosa', lineStyle = 'dotted', analyzedInfo = null }) {
-  const rawTheme = (theme && theme.trim()) || analyzedInfo?.themeDescription || 'vintage roses and delicate wildflowers';
-  const translatedTheme = translateThemeTerms(rawTheme);
 
-  // Regra de posição dos elementos decorativos
-  let layoutRule;
-  if (position === 'top') {
-    layoutRule = 'delicate decorative watercolor border along top edge only, large completely empty pure white center and bottom for handwriting';
-  } else if (position === 'bottom') {
-    layoutRule = 'delicate decorative watercolor border along bottom edge only, large completely empty pure white center and top for handwriting';
-  } else if (position === 'sides') {
-    layoutRule = 'delicate floral watercolor borders along left and right margins, large clean empty pure white center for writing';
-  } else if (position === 'all') {
-    layoutRule = 'delicate botanical watercolor frame border along all outer edges, wide clean empty pure white center for writing';
-  } else {
-    // 'frame' / diagonal clássica
-    layoutRule = 'delicate watercolor botanical accents strictly in opposing top-left and bottom-right corners, leaving all other space completely blank and pure white for writing';
-  }
-
-  // Regra de cor
-  let colorRule;
-  if (colorMode === 'mono') {
-    const palObj = MONO_PALETTES.find(p => p.id === monoColor) || MONO_PALETTES[0];
-    colorRule = `monochromatic single-color shades of ${palObj.label} (${palObj.desc})`;
-  } else {
-    colorRule = 'soft pastel watercolor tones, delicate watercolor painting';
-  }
-
-  // Regra de linhas
-  let lineRule;
-  if (lineStyle === 'dotted') {
-    lineRule = 'with faint subtle dotted horizontal writing lines across the center';
-  } else if (lineStyle === 'solid') {
-    lineRule = 'with very faint delicate thin horizontal lines for writing';
-  } else {
-    lineRule = 'clean unruled white page, no lines';
-  }
-
-  // Design 100% plano (2D flat graphic design), sem mockups, sem sombras e sem mesas
-  return `Flat 2D printable stationery page background design, top-down flat lay view, edge-to-edge border illustration of ${translatedTheme}, ${layoutRule}, ${colorRule}, ${lineRule}, hand-painted watercolor art style, solid pure white canvas background (#ffffff), perfectly centered, no photo of paper, no mockup, no drop shadow, no tabletop, no frame border, clean empty center for handwriting`;
+function base64ToBlob(b64, type) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
 }
 
 /**
@@ -186,6 +195,14 @@ async function fetchImageAsBlob(url, timeoutMs = 25000) {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(url, { signal: controller.signal, mode: 'cors' });
+      // Limite gratuito do Pollinations: 1 imagem a cada ~45s por IP
+      if (res.status === 402 || res.status === 429) {
+        const wait = parseInt(res.headers.get('retry-after') || '45', 10);
+        const err = new Error(`Aguarde ${wait} segundos para criar outro papel.`);
+        err.code = 'RATE_LIMIT';
+        err.retryAfter = wait;
+        throw err;
+      }
       if (res.ok) {
         const blob = await res.blob();
         // Só aceita imagem de verdade (páginas de erro/JSON também podem ter >5KB)
@@ -197,6 +214,7 @@ async function fetchImageAsBlob(url, timeoutMs = 25000) {
       clearTimeout(timer);
     }
   } catch (fetchErr) {
+    if (fetchErr.code === 'RATE_LIMIT') throw fetchErr; // não adianta insistir agora
     console.warn('Fetch direto falhou ou demorou, tentando fallback via elemento Image:', fetchErr.message);
   }
 
@@ -249,8 +267,30 @@ async function fetchImageAsBlob(url, timeoutMs = 25000) {
  * e filtros rigorosos para impedir mockups 3D, mesas e distorção.
  */
 export async function generateStationeryPaper(options) {
-  const { theme, position, colorMode, monoColor, lineStyle, analyzedInfo } = options;
-  const prompt = buildStationeryPrompt({ theme, position, colorMode, monoColor, lineStyle, analyzedInfo });
+  const { theme, position, colorMode, monoColor, analyzedInfo, fresh = false } = options;
+  const prompt = buildStationeryPrompt({ theme, position, colorMode, monoColor, analyzedInfo });
+
+  // 1. Principal: Cloudflare (FLUX.2) pelo servidor — sem marca d'água, formato A5.
+  //    Só para quem entrou com Google. Se a cota do dia acabar, cai no Pollinations.
+  try {
+    const data = await authFetch('/api/generate-paper', {
+      body: {
+        theme: theme || analyzedInfo?.portugueseSummary || '',
+        position,
+        colorMode,
+        monoColor,
+        suggestedColors: analyzedInfo?.suggestedColors || '',
+        fresh,
+      },
+    });
+    if (data?.image) {
+      return { blob: base64ToBlob(data.image, 'image/jpeg'), prompt, engine: data.source || 'cloudflare' };
+    }
+  } catch (err) {
+    if (err.status === 422) throw err; // tema recusado pelo filtro: mostrar a mensagem
+    console.info('Gerador principal indisponível, usando reserva:', err.message);
+  }
+
   const encodedPrompt = encodeURIComponent(prompt);
   
   // Prompt negativo estrito: impede mockups de papel, sombras de mesa e fundo cinza
@@ -262,7 +302,7 @@ export async function generateStationeryPaper(options) {
   const A5_W = 768;
   const A5_H = 1088;
 
-  // Chamada direta à API do Pollinations a partir do navegador do cliente (CORS nativo habilitado)
+  // Pollinations direto do navegador (grátis; 1 imagem/45s por pessoa)
   const baseUrl = 'https://image.pollinations.ai';
 
   // 1. Tentar primeiro com o motor Turbo (rápido, gera em 3 a 6 segundos)
@@ -271,6 +311,7 @@ export async function generateStationeryPaper(options) {
     const blob = await fetchImageAsBlob(turboUrl, 25000);
     return { blob, prompt, engine: 'turbo' };
   } catch (err1) {
+    if (err1.code === 'RATE_LIMIT') throw err1; // os motores dividem o mesmo limite
     console.warn('Motor Turbo demorou ou falhou, tentando motor padrão:', err1.message);
   }
 
@@ -280,6 +321,7 @@ export async function generateStationeryPaper(options) {
     const blob = await fetchImageAsBlob(defaultUrl, 25000);
     return { blob, prompt, engine: 'default' };
   } catch (err2) {
+    if (err2.code === 'RATE_LIMIT') throw err2; // os motores dividem o mesmo limite
     console.warn('Motor padrão falhou, tentando motor Flux:', err2.message);
   }
 

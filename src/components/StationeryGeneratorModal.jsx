@@ -8,6 +8,7 @@ import {
   analyzeImageForStationery,
   generateStationeryPaper
 } from '../lib/geminiImagen';
+import { drawWritingLines } from '../lib/writingLines';
 
 const QUICK_THEMES = [
   '🌸 Rosas vintage',
@@ -43,6 +44,11 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
 
   const fileInputRef = useRef(null);
   const fadeJobRef = useRef(0);
+
+  // Trocar o tipo de linha atualiza o papel na hora, sem gerar de novo
+  useEffect(() => {
+    if (rawBlob) showFaded(rawBlob, fadeScale, lineStyle).catch(() => {});
+  }, [lineStyle]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Libera a object URL anterior sempre que o preview muda / ao desmontar
   useEffect(() => {
@@ -83,7 +89,7 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
   }
 
   // Aplica o fade central suave para escrita
-  function applyFadeToBlob(blob, scale, opacity) {
+  function applyFadeToBlob(blob, scale, opacity, lines, pos) {
     return new Promise((resolve, reject) => {
       const img = new Image();
       const srcUrl = URL.createObjectURL(blob);
@@ -111,6 +117,9 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        // Linhas de escrita desenhadas pelo app (retas e alinhadas com o PDF)
+        drawWritingLines(ctx, canvas.width, canvas.height, lines, pos);
+
         URL.revokeObjectURL(srcUrl);
         canvas.toBlob(
           (out) => (out ? resolve(out) : reject(new Error('Falha ao processar a imagem'))),
@@ -122,15 +131,15 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
     });
   }
 
-  async function showFaded(sourceBlob, scale) {
+  async function showFaded(sourceBlob, scale, lines = lineStyle) {
     const job = ++fadeJobRef.current;
-    const faded = await applyFadeToBlob(sourceBlob, scale, FADE_OPACITY);
+    const faded = await applyFadeToBlob(sourceBlob, scale, FADE_OPACITY, lines, position);
     if (job !== fadeJobRef.current) return; // ignora resultados de movimentos antigos do slider
     setPreviewBlob(faded);
     setPreviewUrl(URL.createObjectURL(faded));
   }
 
-  async function handleGenerate() {
+  async function handleGenerate(fresh = false) {
     setGenerating(true);
     setPreviewUrl(null);
     setPreviewBlob(null);
@@ -143,14 +152,21 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
         colorMode,
         monoColor,
         lineStyle,
-        analyzedInfo
+        analyzedInfo,
+        fresh
       });
 
       setRawBlob(result.blob);
       await showFaded(result.blob, fadeScale);
     } catch (err) {
       console.error('Erro ao gerar papel:', err);
-      alert('Não foi possível gerar o papel no momento (' + (err.message || 'tempo esgotado') + '). Verifique sua conexão e tente novamente!');
+      if (err.status === 422) {
+        alert(err.message);
+      } else if (err.code === 'RATE_LIMIT') {
+        alert(`⏳ O criador gratuito precisa de uma pausa entre um papel e outro.\n\n${err.message}`);
+      } else {
+        alert('Não foi possível gerar o papel no momento. Verifique sua internet e tente novamente!');
+      }
     } finally {
       setGenerating(false);
     }
@@ -209,7 +225,7 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
                 value={theme}
                 onChange={(e) => setTheme(e.target.value)}
                 className="gen-modal-input"
-                onKeyDown={(e) => e.key === 'Enter' && !generating && handleGenerate()}
+                onKeyDown={(e) => e.key === 'Enter' && !generating && handleGenerate(false)}
               />
               <button
                 type="button"
@@ -362,7 +378,7 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
             <button
               type="button"
               className="gen-main-btn"
-              onClick={handleGenerate}
+              onClick={() => handleGenerate(false)}
               disabled={generating}
             >
               {generating ? (
@@ -378,6 +394,7 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
               )}
             </button>
           )}
+
 
           {/* PREVIEW DO PAPEL GERADO */}
           {generating && (
@@ -426,7 +443,7 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
             <button type="button" className="gen-modal-btn discard" onClick={() => { setPreviewUrl(null); setPreviewBlob(null); setRawBlob(null); }}>
               Voltar
             </button>
-            <button type="button" className="gen-modal-btn regenerate" onClick={handleGenerate}>
+            <button type="button" className="gen-modal-btn regenerate" onClick={() => handleGenerate(true)}>
               <RefreshCw size={15} />
               Tentar Outro
             </button>

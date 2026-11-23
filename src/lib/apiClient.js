@@ -27,7 +27,10 @@ export async function authFetch(path, { body, ...options } = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.error || `Erro ${response.status}`);
+    const err = new Error(data?.error || `Erro ${response.status}`);
+    err.status = response.status;
+    err.data = data;
+    throw err;
   }
   return data;
 }
