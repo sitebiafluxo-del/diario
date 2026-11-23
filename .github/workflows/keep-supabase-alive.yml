@@ -5,27 +5,28 @@ on:
     - cron: '0 12 * * *'  # Todo dia ao meio-dia UTC (09:00 BRT)
   workflow_dispatch:       # Permite rodar manualmente pelo GitHub
 
+# O job não precisa de nenhuma permissão no repositório
+permissions: {}
+
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase
+      - name: Ping Supabase (consulta leve ao banco com a anon key pública)
+        # Antes usava SUPABASE_ACCESS_TOKEN (token da Management API, com poder total
+        # sobre a conta) só para um SELECT 1. A anon key é pública e limitada pelo RLS.
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          RESPONSE=$(curl -s -w "\nHTTP:%{http_code}" \
-            -X POST "https://api.supabase.com/v1/projects/${{ secrets.SUPABASE_PROJECT_REF }}/database/query" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d '{"query": "SELECT 1 AS alive;"}')
-
-          HTTP_CODE=$(echo "$RESPONSE" | tail -1 | cut -d: -f2)
-          BODY=$(echo "$RESPONSE" | head -1)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://${SUPABASE_PROJECT_REF}.supabase.co/storage/v1/bucket" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
 
           echo "HTTP: $HTTP_CODE"
-          echo "Resposta: $BODY"
-
-          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
+          if [ "$HTTP_CODE" != "200" ]; then
             echo "Falha ao contatar o Supabase!"
             exit 1
           fi
-
           echo "Supabase está ativo!"

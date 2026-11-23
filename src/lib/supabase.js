@@ -13,7 +13,16 @@ if (!isValidConfig) {
 }
 
 export const supabase = isValidConfig
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        // PKCE: o retorno do Google traz só um "code" de uso único na URL,
+        // em vez do access_token (que poderia vazar pelo histórico/Referer).
+        flowType: 'pkce',
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   : null;
 
 export const isSupabaseConfigured = () => !!supabase;
