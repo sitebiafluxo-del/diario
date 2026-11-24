@@ -63,8 +63,13 @@ export async function requireUser(req, res) {
     }
     user = await r.json();
   } catch (err) {
-    console.error('Falha ao validar sessão no Supabase:', err.message, '| host:', SUPABASE_URL);
-    res.status(503).json({ error: 'Não foi possível validar a sessão.' });
+    const code = err?.cause?.code || err?.code || err?.name || 'erro';
+    console.error('Falha ao validar sessão no Supabase:', err.message, code, '| host:', SUPABASE_URL);
+    // Diagnóstico sem segredos: tipo do erro + domínio público do Supabase
+    res.status(503).json({
+      error: 'Não foi possível validar a sessão.',
+      diag: `${code} @ ${SUPABASE_URL ? new URL(SUPABASE_URL).host : 'sem-url'}`,
+    });
     return null;
   }
 
