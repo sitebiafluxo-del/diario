@@ -24,6 +24,10 @@ const HEIGHT = 1088;
 const SUPABASE_URL = envUrl('SUPABASE_URL', 'VITE_SUPABASE_URL');
 const SERVICE_KEY = env('SUPABASE_SERVICE_ROLE_KEY'); // opcional: sem ela, sem cache
 const CACHE_BUCKET = 'paper-cache';
+// Chaves novas (sb_secret_...) vão só no header apikey; as antigas (JWT) também em Authorization
+const serviceHeaders = () => (SERVICE_KEY?.startsWith('sb_secret_')
+  ? { apikey: SERVICE_KEY }
+  : { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` });
 const CACHE_VERSION = 'v1'; // mude ao alterar o prompt, para não servir papéis antigos
 
 const POSITIONS = new Set(['frame', 'top', 'bottom', 'sides', 'all']);
@@ -45,7 +49,7 @@ async function readCache(key) {
   if (!SERVICE_KEY || !SUPABASE_URL) return null;
   try {
     const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${CACHE_BUCKET}/${key}.jpg`, {
-      headers: { Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY },
+      headers: serviceHeaders(),
     });
     if (!r.ok) return null;
     return Buffer.from(await r.arrayBuffer()).toString('base64');
@@ -60,8 +64,7 @@ async function writeCache(key, base64) {
     await fetch(`${SUPABASE_URL}/storage/v1/object/${CACHE_BUCKET}/${key}.jpg`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        apikey: SERVICE_KEY,
+        ...serviceHeaders(),
         'Content-Type': 'image/jpeg',
         'x-upsert': 'true',
       },
