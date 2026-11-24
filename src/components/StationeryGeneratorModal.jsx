@@ -9,6 +9,7 @@ import {
   generateStationeryPaper
 } from '../lib/geminiImagen';
 import { drawWritingLines } from '../lib/writingLines';
+import { useAuth } from '../contexts/AuthContext';
 
 const QUICK_THEMES = [
   '🌸 Rosas vintage',
@@ -22,6 +23,7 @@ const QUICK_THEMES = [
 ];
 
 export default function StationeryGeneratorModal({ onClose, onSelectStationery }) {
+  const { user, signInWithGoogle, isDemo } = useAuth();
   const [theme, setTheme] = useState('');
   const [position, setPosition] = useState('frame'); // 'frame' | 'top' | 'bottom' | 'sides' | 'all'
   const [colorMode, setColorMode] = useState('color'); // 'color' | 'mono'
@@ -139,12 +141,39 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
     setPreviewUrl(URL.createObjectURL(faded));
   }
 
-  async function handleGenerate(fresh = false) {
+  // Espera do criador reserva (Pollinations): contagem visível e nova tentativa automática
+  const [waitSeconds, setWaitSeconds] = useState(0);
+  const waitTimerRef = useRef(null);
+  useEffect(() => () => clearInterval(waitTimerRef.current), []);
+
+  function waitAndRetry(seconds, fresh) {
+    clearInterval(waitTimerRef.current);
+    let left = Math.max(1, Math.min(seconds, 60));
+    setWaitSeconds(left);
+    waitTimerRef.current = setInterval(() => {
+      left -= 1;
+      setWaitSeconds(left);
+      if (left <= 0) {
+        clearInterval(waitTimerRef.current);
+        handleGenerate(fresh, true);
+      }
+    }, 1000);
+  }
+
+  function cancelWait() {
+    clearInterval(waitTimerRef.current);
+    setWaitSeconds(0);
+    setGenerating(false);
+  }
+
+  async function handleGenerate(fresh = false, isRetry = false) {
     setGenerating(true);
+    setWaitSeconds(0);
     setPreviewUrl(null);
     setPreviewBlob(null);
     setRawBlob(null);
 
+    let keepLoading = false;
     try {
       const result = await generateStationeryPaper({
         theme,
@@ -162,15 +191,18 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
       console.error('Erro ao gerar papel:', err);
       if (err.status === 422) {
         alert(err.message);
-      } else if (err.code === 'RATE_LIMIT') {
-        alert(`⏳ O criador gratuito precisa de uma pausa entre um papel e outro.\n\n${err.message}`);
+      } else if (err.code === 'RATE_LIMIT' && !isRetry) {
+        // Sem alerta: mostra a contagem e tenta de novo sozinho
+        keepLoading = true;
+        waitAndRetry((err.retryAfter || 45) + 1, fresh);
       } else {
-        alert('Não foi possível gerar o papel no momento. Verifique sua internet e tente novamente!');
+        alert('Não foi possível criar o papel agora. Verifique sua internet e tente de novo em instantes.');
       }
     } finally {
-      setGenerating(false);
+      if (!keepLoading) setGenerating(false);
     }
   }
+
 
   async function handleSavePaper() {
     if (!previewBlob) return;
@@ -373,6 +405,16 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
             </div>
           </section>
 
+          {/* Convite para entrar: com login o papel sai melhor, mais rápido e sem marca d'água */}
+          {!user && !isDemo && !previewUrl && !generating && (
+            <div className="login-hint">
+              <span>✨ Entre com sua conta Google para criar papéis <strong>sem marca d'água</strong> e <strong>sem espera</strong>.</span>
+              <button type="button" className="login-hint-btn" onClick={() => signInWithGoogle().catch((e) => alert(e.message))}>
+                Entrar com Google
+              </button>
+            </div>
+          )}
+
           {/* BOTÃO GERAR */}
           {!previewUrl && (
             <button
@@ -400,8 +442,21 @@ export default function StationeryGeneratorModal({ onClose, onSelectStationery }
           {generating && (
             <div className="gen-loading-box animate-fade-in">
               <Loader2 size={36} className="spin" style={{ color: 'var(--primary)' }} />
-              <p>Pintando as aquarelas e organizando o papel A5...</p>
-              <small>Pronto para imprimir 2 cartas por folha A4</small>
+              {waitSeconds > 0 ? (
+                <>
+                  <p>Quase lá! Começando em <strong>{waitSeconds}s</strong>…</p>
+                  <small>O criador gratuito pede uma pequena pausa entre um papel e outro.</small>
+                  {!user && !isDemo && (
+                    <small>Entre com Google para criar sem espera e sem marca d'água.</small>
+                  )}
+                  <button type="button" className="google-steps-cancel" onClick={cancelWait}>Cancelar</button>
+                </>
+              ) : (
+                <>
+                  <p>Pintando as aquarelas e organizando o papel A5...</p>
+                  <small>Pronto para imprimir 2 cartas por folha A4</small>
+                </>
+              )}
             </div>
           )}
 

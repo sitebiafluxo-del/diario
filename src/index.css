@@ -1671,3 +1671,37 @@ body {
   cursor: not-allowed;
 }
 
+
+/* ── Convite para login / botão cancelar espera ─────────────── */
+.login-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff8ef;
+  border: 1px solid #f1dcc0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.login-hint-btn {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid #dadce0;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.google-steps-cancel {
+  display: block;
+  margin: 10px auto 0;
+  background: none;
+  border: none;
+  color: #7a6555;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.95rem;
+}

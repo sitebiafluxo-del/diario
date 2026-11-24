@@ -5,11 +5,12 @@
  * Retorna: { themeDescription, suggestedColors, portugueseSummary }
  */
 import { requireUser, rateLimit, consumeDailyQuota, fail, noStore } from './_lib/auth.js';
+import { env } from './_lib/env.js';
 
 // Modelos em ordem de preferência (baratos e rápidos). Se um não existir mais (404)
 // ou estiver sobrecarregado (429/503), tenta o próximo em vez de travar o app.
 const MODELS = [
-  process.env.GEMINI_MODEL,
+  env('GEMINI_MODEL'),
   'gemini-3.1-flash-lite',
   'gemini-3.5-flash-lite',
   'gemini-2.5-flash-lite',
@@ -45,7 +46,7 @@ export default async function handler(req, res) {
   const { user, token } = auth;
   if (!rateLimit(res, `analyze:${user.id}`, { limit: 5 })) return;
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = env('GEMINI_API_KEY');
   if (!apiKey) return fail(res, 503, 'Análise de imagem indisponível no momento.');
 
   // Valida a entrada ANTES de consumir cota

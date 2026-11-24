@@ -13,15 +13,16 @@
 import crypto from 'node:crypto';
 import { requireUser, rateLimit, consumeDailyQuota, fail, noStore } from './_lib/auth.js';
 import { buildStationeryPrompt, MONO_PALETTES } from '../src/lib/stationeryPrompt.js';
+import { env, envUrl } from './_lib/env.js';
 
-const CF_ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID;
-const CF_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
-const CF_MODEL = process.env.CLOUDFLARE_IMAGE_MODEL || '@cf/black-forest-labs/flux-2-klein-4b';
+const CF_ACCOUNT = env('CLOUDFLARE_ACCOUNT_ID');
+const CF_TOKEN = env('CLOUDFLARE_API_TOKEN');
+const CF_MODEL = env('CLOUDFLARE_IMAGE_MODEL') || '@cf/black-forest-labs/flux-2-klein-4b';
 const WIDTH = 768;   // proporção A5 (1 : 1,416), múltiplos de 64
 const HEIGHT = 1088;
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY; // opcional: sem ela, sem cache
+const SUPABASE_URL = envUrl('SUPABASE_URL', 'VITE_SUPABASE_URL');
+const SERVICE_KEY = env('SUPABASE_SERVICE_ROLE_KEY'); // opcional: sem ela, sem cache
 const CACHE_BUCKET = 'paper-cache';
 const CACHE_VERSION = 'v1'; // mude ao alterar o prompt, para não servir papéis antigos
 

@@ -9,11 +9,13 @@
  *   4. cota diária PERSISTENTE no banco (vale para todas as instâncias)
  */
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+import { env, envUrl } from './env.js';
+
+const SUPABASE_URL = envUrl('SUPABASE_URL', 'VITE_SUPABASE_URL');
+const SUPABASE_ANON_KEY = env('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
 const JWT_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const ALLOWED_EMAILS = new Set(
-  (process.env.ALLOWED_EMAILS || '')
+  (env('ALLOWED_EMAILS') || '')
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean)
@@ -61,7 +63,7 @@ export async function requireUser(req, res) {
     }
     user = await r.json();
   } catch (err) {
-    console.error('Falha ao validar sessão:', err.message);
+    console.error('Falha ao validar sessão no Supabase:', err.message, '| host:', SUPABASE_URL);
     res.status(503).json({ error: 'Não foi possível validar a sessão.' });
     return null;
   }
